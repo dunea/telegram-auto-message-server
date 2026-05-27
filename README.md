@@ -14,6 +14,16 @@
 2. 号池模式
    - 设置环境变量 MODE=pool
    - 启动后进入后台循环，不暴露业务 API
+   - 支持多服务器部署多个号池实例
+   - 每个号池实例可通过 POOL_MAX_CONCURRENT_LOGINS 配置并发登录上限
+
+## 号池扩展配置
+
+- POOL_INSTANCE_ID：号池实例标识（建议每台服务器唯一）
+- POOL_MAX_CONCURRENT_LOGINS：当前号池实例并发登录账号上限
+- POOL_TOTAL_SHARDS：号池总分片数
+- POOL_SHARD_INDEX：当前号池实例分片编号（从 0 开始）
+- POOL_LOGIN_SCAN_INTERVAL_SECONDS：账号巡检与登录扫描周期（秒）
 
 ## 快速开始
 

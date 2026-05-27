@@ -17,6 +17,8 @@
 
 2. 号池模式
    - 运行多个 Telegram 账号
+   - 支持在多台服务器同时运行多个号池实例
+   - 每个号池实例可通过环境变量配置“同时登录账号上限”
    - 根据数据库状态判断账号是否需要登录/上线
    - 拉取会话列表
    - 拉取消息列表
@@ -44,7 +46,7 @@
 
 ## 4. 关键数据表
 
-1. api_user：服务调用方用户
+1. user：服务调用方用户
 2. telegram_account：托管 Telegram 账号
 3. proxy_info：代理 IP 信息
 4. telegram_message：消息记录
@@ -69,8 +71,28 @@
 - MODE=api：启动 HTTP API
 - MODE=pool：启动号池后台循环
 
+号池扩展配置：
+
+- POOL_INSTANCE_ID：号池实例标识，用于多服务器部署下的日志与实例追踪
+- POOL_MAX_CONCURRENT_LOGINS：当前号池实例同时登录账号上限
+- POOL_TOTAL_SHARDS：号池总分片数
+- POOL_SHARD_INDEX：当前号池实例分片编号（从 0 开始）
+- POOL_LOGIN_SCAN_INTERVAL_SECONDS：账号巡检与登录扫描周期（秒）
+
+分片策略：
+
+- 规则任务与定时任务按 task_id % POOL_TOTAL_SHARDS == POOL_SHARD_INDEX 分配到实例
+- 每个实例仅加载并执行自己负责的任务分片，避免多实例重复执行
+- 账号巡检按 telegram_account.id % POOL_TOTAL_SHARDS == POOL_SHARD_INDEX 分片执行，避免多实例重复登录同一账号
+
 ## 7. 明确禁止项
 
 1. 禁止自动建表
 2. 禁止自动迁移
 3. 禁止在业务层直接耦合三方 SDK 细节
+
+## 8. 代码规范
+
+- 代码注释默认使用完善中文注释，重点说明关键流程、边界条件、异常处理与输入输出。
+- 保持分层解耦：api 仅做协议编排，service 负责业务聚合，repository 负责数据访问，adapter 负责外部系统接入。
+- 实现风格保持优雅与可维护，避免职责混杂与隐式副作用，优先小函数与清晰命名。
