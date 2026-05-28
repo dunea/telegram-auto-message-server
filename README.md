@@ -146,6 +146,72 @@ POOL_SHARD_GUARD_ENABLED=true
 
 注意：`POOL_TOTAL_SHARDS` 必须在所有实例保持一致，不能只改单台。
 
+## 低风险调优步骤卡片
+
+统一术语：
+
+- 观察窗口：默认按 1 个扫描周期= `POOL_LOGIN_SCAN_INTERVAL_SECONDS`，建议最少观察 3 个窗口。
+- 恢复判定：`degraded=false` 且 `consecutive_degraded_rounds` 归零，关键失败指标回到基线附近。
+- 回退条件：完成 3 个观察窗口后，关键指标无改善或继续恶化。
+
+### 卡片 1：超时失败升高
+
+- 触发信号：`timeout_fail_count` 连续 2~3 轮升高，且 `error_class=timeout` 占比明显。
+- 首步调整（仅改 1~2 项）：`POOL_LOGIN_TIMEOUT_SECONDS` 上调 5 秒；`POOL_LOGIN_RETRY_JITTER_MS` 上调 100ms。
+- 观察窗口：3 轮。
+- 恢复判定：`timeout_fail_count` 明显回落，且 `consecutive_degraded_rounds` 不再上升。
+- 回退条件：3 轮后无改善，回退本次调整并排查代理/网络链路。
+
+### 卡片 2：重试率升高
+
+- 触发信号：`retry_count/processed_accounts` 持续升高，`account_login_retry_scheduled` 频繁出现。
+- 首步调整（仅改 1~2 项）：`POOL_LOGIN_RETRY_BACKOFF_SECONDS` 上调 1 秒；`POOL_MAX_CONCURRENT_LOGINS` 下调 20%。
+- 观察窗口：3~5 轮。
+- 恢复判定：`retry_count` 下降，`success_rate` 保持或提升。
+- 回退条件：`success_rate` 持续下降或 `timeout_fail_count` 反向上升，恢复原值并改查外部网络质量。
+
+### 卡片 3：鉴权失败升高
+
+- 触发信号：`account_login_failed` 中 `error_class=auth` 持续升高。
+- 首步调整（仅改 1 项）：不做并发/重试调优，先冻结参数并进入账号会话修复。
+- 观察窗口：按账号批次修复后再观察 3 轮。
+- 恢复判定：`auth` 错误占比回落到常态，`non_retryable_fail_count` 明显下降。
+- 回退条件：若修复后仍持续上升，回滚最近账号配置变更并复核密钥/会话来源。
+
+### 卡片 4：连续降级轮次上升
+
+- 触发信号：`pool_round_health.degraded=true` 且 `consecutive_degraded_rounds` 连续上升。
+- 首步调整（仅改 1~2 项）：`POOL_MAX_CONCURRENT_LOGINS` 下调 20%~40%；`POOL_LOGIN_TIMEOUT_SECONDS` 上调 5 秒。
+- 观察窗口：5 轮。
+- 恢复判定：`consecutive_degraded_rounds` 清零并稳定至少 3 轮。
+- 回退条件：5 轮后仍降级，回滚到上一稳定参数组合并执行故障升级。
+
+## 参数与日志字段对应表（简版）
+
+| 参数 | 主要观测事件 | 关键字段 | 说明 |
+| --- | --- | --- | --- |
+| POOL_MAX_CONCURRENT_LOGINS | scan_started / pool_round_health | max_concurrent_logins / success_rate / degraded | 并发越高吞吐越大，但风险与资源压力也上升 |
+| POOL_LOGIN_TIMEOUT_SECONDS | account_login_failed / scan_completed | error_class / timeout_fail_count | 超时阈值过低容易误判，过高会延迟失败发现 |
+| POOL_LOGIN_MAX_RETRIES | account_login_failed / account_login_retry_scheduled | max_retries / retry_count | 重试次数越高恢复机会越多，但会放大重试风暴风险 |
+| POOL_LOGIN_RETRY_BACKOFF_SECONDS | account_login_retry_scheduled | next_backoff_seconds | 退避越大越能错峰，恢复速度会变慢 |
+| POOL_LOGIN_RETRY_JITTER_MS | account_login_retry_scheduled | next_backoff_seconds | 增大可平滑同秒重试峰值 |
+| POOL_ROUND_DEGRADED_SUCCESS_RATE_THRESHOLD | pool_round_health | success_rate / degraded | 提高阈值会更敏感，降级更容易触发 |
+| POOL_ROUND_DEGRADED_TIMEOUT_FAIL_THRESHOLD | pool_round_health | timeout_fail_count / degraded | 降低阈值会更早触发降级 |
+
+## 告警级别映射速览
+
+以下为值班快速口径，完整阈值与处置策略以 `docs/OPERATIONS.zh-CN.md` 为准。
+
+| 指标 | Warning | Critical | 首步动作 |
+| --- | --- | --- | --- |
+| success_rate | 连续 2 轮 <0.85 | 连续 3 轮 <0.80 | 降低并发并观察 3 轮 |
+| timeout_fail_count | 连续 2 轮 >=3 | 连续 3 轮 >=5 | 提高超时 + 增加抖动 |
+| non_retryable_fail_count | 连续 2 轮 >=2 | 连续 2 轮 >=3 | 优先排查 auth/会话 |
+| consecutive_degraded_rounds | >=2 | >=3 | 回滚到稳定参数组合 |
+| retry_ratio | 连续 2 轮 >=20% | 连续 3 轮 >=25% | 加大退避并降低并发 |
+
+值班建议先看：`pool_round_health` -> `scan_completed` -> `account_login_failed`。
+
 ## 快速开始
 
 1. 安装依赖
@@ -198,3 +264,7 @@ services:
 详细架构说明请见 docs/ARCHITECTURE.zh-CN.md。
 
 值班排障手册请见 docs/OPERATIONS.zh-CN.md。
+
+1 页值班速查请见 docs/ONCALL-CHEATSHEET.zh-CN.md。
+
+夜班极简速查请见 docs/ONCALL-NIGHT-SHORT.zh-CN.md。

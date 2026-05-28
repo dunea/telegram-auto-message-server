@@ -124,3 +124,37 @@
 - 错误分类统一在 `app/common/error_classifier.py` 维护。
 - `pool_runner` 与 `task_service` 仅消费分类结果，不允许各自定义分类规则。
 - 新增错误类型时，必须同步补充测试用例并更新 README 故障矩阵。
+
+### 9.5 故障恢复期参数协调
+
+目标：从“故障期保守参数”平滑恢复到“目标生产参数”，避免一次性回调导致二次抖动。
+
+阶段建议：
+
+1. 阶段 A（止血）：优先保障可用性
+   - 下调 `POOL_MAX_CONCURRENT_LOGINS`（20%~40%）并适度上调 `POOL_LOGIN_TIMEOUT_SECONDS`。
+   - 观察至少 3 个扫描周期，确认 `consecutive_degraded_rounds` 不再上升。
+2. 阶段 B（恢复）：逐步回升吞吐
+   - 每轮仅回调 1 个参数，单次变化不超过 10%~20%。
+   - 每次调整后至少观察 3 个扫描周期。
+3. 阶段 C（稳态）：回到目标档位
+   - `success_rate`、`timeout_fail_count`、`retry_count` 连续稳定后，再恢复目标并发档位。
+
+恢复判定：
+
+- `pool_round_health.degraded=false` 且 `consecutive_degraded_rounds=0`。
+- `timeout_fail_count` 与 `non_retryable_fail_count` 回落到常态区间。
+
+回退判定：
+
+- 任一阶段出现连续 3 轮降级，回退到上一稳定参数快照。
+
+边界约束：
+
+- 本策略仅规范运维执行与文档口径，不引入新的运行时逻辑。
+
+值班文档优先级：
+
+- 架构原则与边界以本文档为准。
+- 告警阈值与处置动作以 `docs/OPERATIONS.zh-CN.md` 为准。
+- 快速应急执行以 `docs/ONCALL-CHEATSHEET.zh-CN.md` 为准。

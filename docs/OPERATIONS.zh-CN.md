@@ -2,6 +2,8 @@
 
 本手册用于号池模式（MODE=pool）日常值班、故障分级、扩容回滚与上线检查。
 
+使用优先级说明：夜班场景优先查阅 `docs/ONCALL-NIGHT-SHORT.zh-CN.md`，复杂或持续故障再回到本手册执行完整流程。
+
 ## 1. 适用范围
 
 - 后台号池登录巡检与消息任务执行。
@@ -29,6 +31,26 @@
 - `timeout_fail_count`：超时失败计数，升高通常指向网络或代理问题。
 - `non_retryable_fail_count`：不可重试失败计数，升高通常指向鉴权或会话问题。
 
+## 3.1 告警阈值建议表
+
+说明：以下阈值为值班建议口径，可按实例规模微调。`retry_ratio = retry_count / processed_accounts`。
+
+| 指标 | 日常建议 | 峰值建议 | 故障恢复期建议 | Warning 触发 | Critical 触发 |
+| --- | --- | --- | --- | --- | --- |
+| success_rate | >=0.95 | >=0.85 | >=0.80 | 连续 2 轮 <0.85 | 连续 3 轮 <0.80 |
+| timeout_fail_count（每轮） | <2 | <5 | <3 | 连续 2 轮 >=3 | 连续 3 轮 >=5 |
+| non_retryable_fail_count（每轮） | <1 | <2 | <2 | 连续 2 轮 >=2 | 连续 2 轮 >=3 |
+| consecutive_degraded_rounds | 0 | <=1 | <=2 | >=2 | >=3 |
+| retry_ratio | <10% | <20% | <15% | 连续 2 轮 >=20% | 连续 3 轮 >=25% |
+
+处置优先级：先处理 `auth` 与 `non_retryable_fail_count`，再处理 `timeout/network`。
+
+告警持续时长建议：
+
+- Warning：默认按“连续 2 轮”判定，要求 10 分钟内完成首次处置。
+- Critical：默认按“连续 3 轮”判定，要求 5 分钟内上报并进入升级处置。
+- 若 `error_class=auth` 且影响核心发送链路，可跳过 Warning 直接按 Critical 处理。
+
 ## 4. 故障分级与响应
 
 ### P3（轻微）
@@ -41,6 +63,13 @@
 2. 关注 `timeout_fail_count` 是否恢复。
 3. 记录当班时间窗，暂不改参数。
 
+参数处置模板：
+
+- 可调参数：优先不调；必要时仅微调 `POOL_LOGIN_RETRY_JITTER_MS`（+50ms~100ms）。
+- 单次调整上限：不超过当前值的 20%。
+- 升级条件：`consecutive_degraded_rounds` 进入连续上升或触发阈值表升级条件。
+- 告警升级路径：Warning 持续 2 轮未恢复，或出现 `non_retryable_fail_count>=2` 时升级到 P2。
+
 ### P2（中等）
 
 触发条件：`consecutive_degraded_rounds` 持续上升，且 `timeout`/`network` 错误占比明显。
@@ -51,6 +80,13 @@
 2. 临时降低 `POOL_MAX_CONCURRENT_LOGINS`（例如降 20%~40%）。
 3. 必要时提高 `POOL_LOGIN_TIMEOUT_SECONDS` 与 `POOL_LOGIN_RETRY_JITTER_MS`，减小同秒重试峰值。
 
+参数处置模板：
+
+- 可调参数：`POOL_MAX_CONCURRENT_LOGINS`、`POOL_LOGIN_TIMEOUT_SECONDS`、`POOL_LOGIN_RETRY_JITTER_MS`。
+- 单次调整上限：并发最多下调 40%，超时最多上调 10 秒。
+- 升级条件：调整后 3~5 轮仍 `degraded=true` 或 `retry_ratio` 持续升高。
+- 告警升级路径：Warning 升级到 Critical，或 `consecutive_degraded_rounds>=3` 时升级到 P1。
+
 ### P1（严重）
 
 触发条件：`auth` 错误大面积上升，或号池不可用影响核心发送链路。
@@ -60,6 +96,19 @@
 1. 立即暂停参数激进调优，回滚到上一版稳定参数。
 2. 优先修复账号会话、密钥与鉴权配置。
 3. 逐步恢复实例并观察健康日志，确认恢复后再解除告警。
+
+参数处置模板：
+
+- 可调参数：仅允许回滚到“已验证稳定组合”，禁止现场试错式叠加调参。
+- 单次调整上限：直接整组回滚，不做增量漂移。
+- 升级条件：回滚后仍触发升级阈值，进入跨团队联动（网络/账号/平台）。
+- 告警升级路径：Critical 触发后立即执行回滚并上报，持续 3 轮不恢复进入跨团队应急会议。
+
+响应时限建议：
+
+- P3：15 分钟内完成首次定位并记录观察窗口。
+- P2：10 分钟内完成首轮参数处置并确认是否升级。
+- P1：5 分钟内回滚或执行会话修复动作，并同步负责人。
 
 ## 5. 错误分类对照
 
@@ -100,6 +149,12 @@
 - `pool_round_health` 关键字段变化。
 - 修改过的参数与修改理由。
 - 恢复判定依据与后续跟进项。
+
+推荐记录模板：
+
+| 时间窗 | 故障级别 | 触发指标 | 调前参数 | 调后参数 | 观察窗口 | 结果 | 是否回退 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 例：10:00-10:15 | P2 | timeout_fail_count 连续 >=3 | POOL_MAX_CONCURRENT_LOGINS=20 | POOL_MAX_CONCURRENT_LOGINS=14 | 5 轮 | success_rate 回升到 0.9 | 否 |
 
 ## 10. 文档联动约束
 
