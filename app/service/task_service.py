@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.adapter.telegram_adapter import TelegramAdapter
+from app.common.error_classifier import classify_error_message
 from app.config import Settings
 from app.models.enums import MessageContentType, MessageMediaType, MessageSourceType, TaskExecutionStatus
 from app.models.message import MessageContent, MessageContentMedia
@@ -58,6 +59,17 @@ class TaskService:
 
     def _build_rule_job_id(self, task_id: int) -> str:
         return f"rule_task_{task_id}"
+
+    def _log_task_event(self, event: str, level: str = "INFO", **fields: object) -> None:
+        payload = {
+            "ts": datetime.utcnow().isoformat(),
+            "level": level,
+            "event": event,
+            "shard_index": int(self._settings.pool_shard_index),
+            "total_shards": max(1, int(self._settings.pool_total_shards)),
+            **fields,
+        }
+        print(json.dumps(payload, ensure_ascii=False))
 
     def _belongs_to_current_shard(self, task_id: int) -> bool:
         total_shards = max(1, int(self._settings.pool_total_shards))
@@ -334,6 +346,14 @@ class TaskService:
 
     async def ExecuteScheduledTaskById(self, task_id: int) -> None:
         """执行单个定时任务。"""
+        if not self._belongs_to_current_shard(task_id):
+            self._log_task_event(
+                "task_skip_shard",
+                task_type="scheduled",
+                task_id=task_id,
+            )
+            return
+
         session = self._session_factory()
         try:
             scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
@@ -386,6 +406,18 @@ class TaskService:
             execution_log.duration_ms = int((execution_log.finished_at - execution_log.started_at).total_seconds() * 1000)
             execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
             session.commit()
+
+            error_class = classify_error_message(execution_log.error_message)
+            self._log_task_event(
+                "task_executed",
+                level="INFO" if execution_log.status == TaskExecutionStatus.SUCCESS else "WARNING",
+                task_type="scheduled",
+                task_id=int(task.id),
+                status=str(execution_log.status),
+                send_log_id=execution_log.send_log_id,
+                duration_ms=execution_log.duration_ms,
+                error_class=str(error_class),
+            )
         finally:
             session.close()
 
@@ -394,6 +426,14 @@ class TaskService:
 
         约定：action_json 至少包含 target_identifier 与 content 字段。
         """
+        if not self._belongs_to_current_shard(task_id):
+            self._log_task_event(
+                "task_skip_shard",
+                task_type="rule",
+                task_id=task_id,
+            )
+            return
+
         session = self._session_factory()
         try:
             rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
@@ -456,5 +496,17 @@ class TaskService:
             execution_log.duration_ms = int((execution_log.finished_at - execution_log.started_at).total_seconds() * 1000)
             execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
             session.commit()
+
+            error_class = classify_error_message(execution_log.error_message)
+            self._log_task_event(
+                "task_executed",
+                level="INFO" if execution_log.status == TaskExecutionStatus.SUCCESS else "WARNING",
+                task_type="rule",
+                task_id=int(task.id),
+                status=str(execution_log.status),
+                send_log_id=execution_log.send_log_id,
+                duration_ms=execution_log.duration_ms,
+                error_class=str(error_class),
+            )
         finally:
             session.close()

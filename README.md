@@ -24,6 +24,127 @@
 - POOL_TOTAL_SHARDS：号池总分片数
 - POOL_SHARD_INDEX：当前号池实例分片编号（从 0 开始）
 - POOL_LOGIN_SCAN_INTERVAL_SECONDS：账号巡检与登录扫描周期（秒）
+- POOL_LOGIN_TIMEOUT_SECONDS：单次登录/鉴权调用超时时间（秒）
+- POOL_LOGIN_MAX_RETRIES：单账号登录巡检最大重试次数
+- POOL_LOGIN_RETRY_BACKOFF_SECONDS：登录失败重试退避基数（秒，指数退避）
+- POOL_LOGIN_RETRY_JITTER_MS：重试随机抖动（毫秒），用于错峰重试
+- POOL_CLIENT_IDLE_TTL_SECONDS：Telethon 客户端空闲回收阈值（秒）
+- POOL_CLIENT_MAX_FAILED_COUNT：单客户端连续失败达到阈值后强制重建
+- POOL_CLIENT_CACHE_STATS_INTERVAL：缓存统计日志输出间隔（按调用次数）
+- POOL_ROUND_DEGRADED_SUCCESS_RATE_THRESHOLD：轮次健康判定成功率阈值
+- POOL_ROUND_DEGRADED_TIMEOUT_FAIL_THRESHOLD：轮次健康判定超时失败阈值
+- POOL_SHARD_GUARD_ENABLED：启用分片漂移保护（检测到漂移后触发保护退出）
+
+号池运行时会输出结构化健康日志（`pool_round_health`），核心字段包括：
+
+- `success_rate`：当前扫描轮次成功率
+- `retry_count`：轮次内总重试次数
+- `timeout_fail_count`：轮次内超时失败计数
+- `non_retryable_fail_count`：轮次内不可重试失败计数
+- `consecutive_degraded_rounds`：连续降级轮次数
+
+错误分类维护约定：
+
+- 登录/发送错误分类逻辑统一维护在 `app/common/error_classifier.py`。
+- `pool_runner` 与 `task_service` 仅调用该模块，避免分类口径漂移。
+
+## 号池参数档位建议
+
+建议按环境分三档配置：
+
+| 参数 | 开发环境 | 预发环境 | 生产环境 | 调优方向 |
+| --- | --- | --- | --- | --- |
+| POOL_MAX_CONCURRENT_LOGINS | 5 | 10 | 20~50 | 增大提升吞吐，但会提高风控与连接池压力 |
+| POOL_LOGIN_TIMEOUT_SECONDS | 20 | 25 | 30~45 | 增大可减少误判超时，但会拉长失败感知 |
+| POOL_LOGIN_MAX_RETRIES | 1 | 2 | 3~5 | 增大可提升瞬时故障恢复，但会增加重试风暴风险 |
+| POOL_LOGIN_RETRY_BACKOFF_SECONDS | 1 | 2 | 2~4 | 增大可缓解下游压力，但恢复更慢 |
+| POOL_LOGIN_RETRY_JITTER_MS | 50 | 100 | 200~500 | 增大可错峰，降低同秒重试峰值 |
+| POOL_CLIENT_IDLE_TTL_SECONDS | 120 | 180 | 300~600 | 增大提升连接复用，减小可更快回收资源 |
+| POOL_CLIENT_MAX_FAILED_COUNT | 2 | 3 | 3~5 | 减小可更快重建坏连接，增大可减少抖动 |
+| POOL_ROUND_DEGRADED_SUCCESS_RATE_THRESHOLD | 0.6 | 0.7 | 0.8 | 阈值越高越敏感，越容易触发降级告警 |
+| POOL_ROUND_DEGRADED_TIMEOUT_FAIL_THRESHOLD | 5 | 3 | 2~3 | 阈值越低越敏感，越早发现网络问题 |
+
+联动调整建议：
+
+- 当 `POOL_MAX_CONCURRENT_LOGINS` 上调时，应同步提高 `POOL_LOGIN_TIMEOUT_SECONDS` 并适当提高 `POOL_LOGIN_RETRY_JITTER_MS`。
+- 当 `POOL_LOGIN_MAX_RETRIES` 上调时，应同步提高 `POOL_LOGIN_RETRY_BACKOFF_SECONDS`，避免频繁重试冲击 Telegram 或代理网络。
+- 当 `POOL_ROUND_DEGRADED_SUCCESS_RATE_THRESHOLD` 上调时，应结合业务峰值压测结果重新评估 `POOL_ROUND_DEGRADED_TIMEOUT_FAIL_THRESHOLD`。
+
+## 故障处理矩阵
+
+| error_class | 常见原因 | 是否重试 | 建议动作 |
+| --- | --- | --- | --- |
+| timeout | 网络抖动、代理链路拥塞、Telegram 响应慢 | 是 | 优先检查代理与网络，再评估超时与并发参数 |
+| network | DNS/连接重置/瞬时断网 | 是 | 检查宿主机网络、DNS、代理存活，再观察重试恢复率 |
+| auth | 会话失效、密钥配置错误、鉴权失败 | 否 | 立即人工处理账号登录状态和 API 配置，避免无效重试 |
+| unknown | 未覆盖异常、第三方行为变化 | 是（默认） | 先看原始错误，再补充分类规则到统一模块 |
+
+排查流程：
+
+1. 先看 `pool_round_health` 的 `degraded` 和 `consecutive_degraded_rounds`。
+2. 再看 `account_login_failed` 中的 `error_class` 与 `retryable`。
+3. 若 `auth` 占比升高，优先处理账号会话与密钥配置。
+4. 若 `timeout/network` 占比升高，优先处理代理和网络，再调并发与重试参数。
+
+## 上线检查清单
+
+1. 分片参数一致性：确认每个实例 `POOL_TOTAL_SHARDS` 相同，`POOL_SHARD_INDEX` 唯一且在范围内。
+2. 并发参数匹配资源：确认 `POOL_MAX_CONCURRENT_LOGINS` 与 MySQL 连接池容量、代理带宽匹配。
+3. 重试参数合理：确认重试次数、退避、抖动组合不会产生集中重试峰值。
+4. 健康阈值可解释：确认 `POOL_ROUND_DEGRADED_*` 参数符合业务告警敏感度。
+5. 启动后日志校验：至少确认一次 `scan_started`、`scan_completed`、`pool_round_health` 事件字段完整。
+
+## 结构化日志字段字典
+
+核心事件与字段：
+
+- `scan_started`: `max_concurrent_logins`, `shard_index`, `total_shards`, `scan_interval_seconds`
+- `account_login_failed`: `account_id`, `attempt`, `max_retries`, `will_retry`, `retryable`, `error_class`, `error`
+- `account_login_retry_scheduled`: `account_id`, `attempt`, `retry_count`, `next_backoff_seconds`
+- `scan_completed`: `active_accounts`, `sharded_accounts`, `processed_accounts`, `online_count`, `failed_count`, `retry_count`, `timeout_fail_count`, `non_retryable_fail_count`, `duration_ms`
+- `pool_round_health`: `success_rate`, `degraded`, `consecutive_degraded_rounds`
+- `task_executed`: `task_type`, `task_id`, `status`, `duration_ms`, `error_class`
+
+## 生产上线最小参数模板
+
+以下模板用于“先稳后快”的生产首发，建议先按该模板上线，再根据一周观测数据调优。
+
+```env
+MODE=pool
+
+# 分片参数（多实例必须统一 total_shards，index 唯一）
+POOL_TOTAL_SHARDS=3
+POOL_SHARD_INDEX=0
+
+# 并发与超时（首发保守值）
+POOL_MAX_CONCURRENT_LOGINS=20
+POOL_LOGIN_TIMEOUT_SECONDS=30
+
+# 重试策略（避免重试风暴）
+POOL_LOGIN_MAX_RETRIES=3
+POOL_LOGIN_RETRY_BACKOFF_SECONDS=2
+POOL_LOGIN_RETRY_JITTER_MS=200
+
+# 客户端缓存治理
+POOL_CLIENT_IDLE_TTL_SECONDS=300
+POOL_CLIENT_MAX_FAILED_COUNT=3
+POOL_CLIENT_CACHE_STATS_INTERVAL=100
+
+# 轮次健康阈值（偏敏感，利于早发现）
+POOL_ROUND_DEGRADED_SUCCESS_RATE_THRESHOLD=0.8
+POOL_ROUND_DEGRADED_TIMEOUT_FAIL_THRESHOLD=2
+
+# 分片守护
+POOL_SHARD_GUARD_ENABLED=true
+```
+
+多实例部署示例（3 分片）：
+
+1. 实例 A：`POOL_TOTAL_SHARDS=3`，`POOL_SHARD_INDEX=0`
+2. 实例 B：`POOL_TOTAL_SHARDS=3`，`POOL_SHARD_INDEX=1`
+3. 实例 C：`POOL_TOTAL_SHARDS=3`，`POOL_SHARD_INDEX=2`
+
+注意：`POOL_TOTAL_SHARDS` 必须在所有实例保持一致，不能只改单台。
 
 ## 快速开始
 
@@ -38,6 +159,10 @@
 3. 启动
 
    python main.py
+
+4. 运行测试
+
+   python -m pytest -q
 
 ## 数据库迁移约束
 
@@ -71,3 +196,5 @@ services:
 ```
 
 详细架构说明请见 docs/ARCHITECTURE.zh-CN.md。
+
+值班排障手册请见 docs/OPERATIONS.zh-CN.md。

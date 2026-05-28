@@ -5,6 +5,7 @@
 
 from app.models.account import ProxyInfo, TelegramAccount
 from app.models.enums import (
+	ErrorClass,
 	MessageAttemptStatus,
 	MessageContentType,
 	MessageDirection,

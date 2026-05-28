@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     pool_total_shards: int = Field(default=1, ge=1)
     pool_shard_index: int = Field(default=0, ge=0)
     pool_login_scan_interval_seconds: int = Field(default=30, ge=5)
+    pool_login_timeout_seconds: int = Field(default=30, ge=5)
+    pool_login_max_retries: int = Field(default=3, ge=1, le=10)
+    pool_login_retry_backoff_seconds: int = Field(default=2, ge=1)
+    pool_login_retry_jitter_ms: int = Field(default=200, ge=0)
+    pool_client_idle_ttl_seconds: int = Field(default=300, ge=30)
+    pool_client_max_failed_count: int = Field(default=3, ge=1)
+    pool_client_cache_stats_interval: int = Field(default=100, ge=1)
+    pool_round_degraded_success_rate_threshold: float = Field(default=0.7, ge=0, le=1)
+    pool_round_degraded_timeout_fail_threshold: int = Field(default=3, ge=0)
+    pool_shard_guard_enabled: bool = True
 
     mysql_dsn: str = "mysql+pymysql://root:root@127.0.0.1:3306/telegram_auto_message"
 

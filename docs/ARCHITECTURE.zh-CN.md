@@ -96,3 +96,31 @@
 - 代码注释默认使用完善中文注释，重点说明关键流程、边界条件、异常处理与输入输出。
 - 保持分层解耦：api 仅做协议编排，service 负责业务聚合，repository 负责数据访问，adapter 负责外部系统接入。
 - 实现风格保持优雅与可维护，避免职责混杂与隐式副作用，优先小函数与清晰命名。
+
+## 9. 号池运维策略
+
+### 9.1 扩容流程
+
+1. 先确定目标实例数 N，并将所有实例统一设置 `POOL_TOTAL_SHARDS=N`。
+2. 为每个实例分配唯一 `POOL_SHARD_INDEX`（范围 `0 ~ N-1`）。
+3. 逐实例滚动发布，确认每个实例都输出正确的 `scan_started` 分片字段。
+4. 发布完成后观察 3~5 个扫描周期，确认 `pool_round_health` 未持续降级。
+
+### 9.2 回滚流程
+
+1. 当连续降级轮次持续升高或出现大面积 `auth` 错误时，优先回滚到上一个稳定参数组合。
+2. 回滚时保持 `POOL_TOTAL_SHARDS` 与 `POOL_SHARD_INDEX` 成对一致，禁止只改单个参数。
+3. 回滚后重点检查 `account_login_failed` 的 `error_class` 分布是否恢复。
+
+### 9.3 健康日志判读基线
+
+- `pool_round_health.degraded=true`：说明当前轮次触发降级条件。
+- `consecutive_degraded_rounds` 持续上升：说明故障未恢复，应升级处理。
+- `timeout_fail_count` 持续偏高：优先排查网络/代理链路。
+- `non_retryable_fail_count` 偏高：优先排查账号会话和鉴权配置。
+
+### 9.4 错误分类策略约束
+
+- 错误分类统一在 `app/common/error_classifier.py` 维护。
+- `pool_runner` 与 `task_service` 仅消费分类结果，不允许各自定义分类规则。
+- 新增错误类型时，必须同步补充测试用例并更新 README 故障矩阵。

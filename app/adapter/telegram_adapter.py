@@ -1,4 +1,6 @@
 import importlib
+import asyncio
+import json
 from datetime import datetime
 from typing import Any
 
@@ -13,7 +15,88 @@ class TelegramAdapter:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client_cache: dict[int, Any] = {}
+        self._client_cache: dict[int, dict[str, Any]] = {}
+        self._cache_recycled_count = 0
+        self._cache_calls_count = 0
+
+    def _log_cache_event(self, event: str, **fields: object) -> None:
+        payload = {
+            "ts": datetime.utcnow().isoformat(),
+            "level": "INFO",
+            "component": "telegram_adapter",
+            "event": event,
+            **fields,
+        }
+        print(json.dumps(payload, ensure_ascii=False))
+
+    def _should_log_cache_stats(self) -> bool:
+        interval = max(1, int(self._settings.pool_client_cache_stats_interval))
+        return self._cache_calls_count % interval == 0
+
+    def _emit_cache_stats_if_needed(self) -> None:
+        if not self._should_log_cache_stats():
+            return
+        self._log_cache_event(
+            "cache_stats",
+            cached_clients=len(self._client_cache),
+            recycled_clients=self._cache_recycled_count,
+            cache_calls=self._cache_calls_count,
+        )
+
+    async def _call_with_timeout(self, coro: Any) -> Any:
+        return await asyncio.wait_for(coro, timeout=self._settings.pool_login_timeout_seconds)
+
+    async def _drop_client(self, account_id: int) -> None:
+        cached = self._client_cache.pop(account_id, None)
+        if not cached:
+            return
+
+        self._cache_recycled_count += 1
+
+        client = cached.get("client")
+        if client is None:
+            return
+
+        try:
+            if await self._is_client_connected(client):
+                await self._call_with_timeout(client.disconnect())
+        except Exception:
+            return
+
+    async def _recycle_idle_client_if_needed(self, account_id: int) -> None:
+        cached = self._client_cache.get(account_id)
+        if not cached:
+            return
+
+        last_used_at = cached.get("last_used_at")
+        if not isinstance(last_used_at, datetime):
+            await self._drop_client(account_id)
+            return
+
+        idle_seconds = (datetime.utcnow() - last_used_at).total_seconds()
+        if idle_seconds >= self._settings.pool_client_idle_ttl_seconds:
+            await self._drop_client(account_id)
+
+    def _should_force_rebuild_client(self, account_id: int) -> bool:
+        cached = self._client_cache.get(account_id)
+        if not cached:
+            return False
+        failed_count = int(cached.get("failed_count") or 0)
+        return failed_count >= int(self._settings.pool_client_max_failed_count)
+
+    def _mark_client_used(self, account_id: int) -> None:
+        cached = self._client_cache.get(account_id)
+        if not cached:
+            return
+        cached["last_used_at"] = datetime.utcnow()
+        cached["failed_count"] = 0
+
+    def _mark_client_failed(self, account_id: int) -> None:
+        cached = self._client_cache.get(account_id)
+        if not cached:
+            return
+        cached["failed_count"] = int(cached.get("failed_count") or 0) + 1
+        cached["last_used_at"] = datetime.utcnow()
 
     def _build_client(self, session_string: str) -> Any:
         telethon_module = importlib.import_module("telethon")
@@ -36,14 +119,34 @@ class TelegramAdapter:
 
     async def EnsureConnected(self, account_id: int, session_string: str) -> Any:
         """确保指定账号对应客户端可用并保持连接。"""
-        client = self._client_cache.get(account_id)
-        if client is None:
-            client = self._build_client(session_string=session_string)
-            self._client_cache[account_id] = client
+        self._cache_calls_count += 1
+        await self._recycle_idle_client_if_needed(account_id)
 
-        if not await self._is_client_connected(client):
-            await client.connect()
-        return client
+        cached = self._client_cache.get(account_id)
+        if cached is None:
+            client = self._build_client(session_string=session_string)
+            cached = {
+                "client": client,
+                "last_used_at": datetime.utcnow(),
+                "failed_count": 0,
+            }
+            self._client_cache[account_id] = cached
+
+        client = cached["client"]
+
+        try:
+            connected = await self._call_with_timeout(self._is_client_connected(client))
+            if not connected:
+                await self._call_with_timeout(client.connect())
+            self._mark_client_used(account_id)
+            self._emit_cache_stats_if_needed()
+            return client
+        except Exception:
+            self._mark_client_failed(account_id)
+            if self._should_force_rebuild_client(account_id):
+                await self._drop_client(account_id)
+            self._emit_cache_stats_if_needed()
+            raise
 
     def _extract_peer(self, peer: Any) -> tuple[str, int | None]:
         if peer is None:
@@ -66,11 +169,21 @@ class TelegramAdapter:
 
     async def IsAuthorized(self, account_id: int, session_string: str) -> bool:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
-        return bool(await client.is_user_authorized())
+        try:
+            is_authorized = bool(await self._call_with_timeout(client.is_user_authorized()))
+            self._mark_client_used(account_id)
+            self._emit_cache_stats_if_needed()
+            return is_authorized
+        except Exception:
+            self._mark_client_failed(account_id)
+            if self._should_force_rebuild_client(account_id):
+                await self._drop_client(account_id)
+            self._emit_cache_stats_if_needed()
+            raise
 
     async def ListDialogs(self, account_id: int, session_string: str, limit: int) -> list[dict[str, Any]]:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
-        dialogs = await client.get_dialogs(limit=limit)
+        dialogs = await self._call_with_timeout(client.get_dialogs(limit=limit))
 
         result: list[dict[str, Any]] = []
         for dialog in dialogs:
@@ -92,8 +205,8 @@ class TelegramAdapter:
         limit: int,
     ) -> list[dict[str, Any]]:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
-        entity = await client.get_entity(target_identifier)
-        messages = await client.get_messages(entity, limit=limit)
+        entity = await self._call_with_timeout(client.get_entity(target_identifier))
+        messages = await self._call_with_timeout(client.get_messages(entity, limit=limit))
 
         result: list[dict[str, Any]] = []
         for message in messages:
@@ -130,9 +243,11 @@ class TelegramAdapter:
     ) -> dict[str, Any]:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
         if media_url:
-            sent_message = await client.send_file(target_identifier, media_url, caption=media_caption or content or "")
+            sent_message = await self._call_with_timeout(
+                client.send_file(target_identifier, media_url, caption=media_caption or content or "")
+            )
         else:
-            sent_message = await client.send_message(target_identifier, content)
+            sent_message = await self._call_with_timeout(client.send_message(target_identifier, content))
 
         sent_date = getattr(sent_message, "date", None)
         peer_type, peer_id = self._extract_peer(getattr(sent_message, "peer_id", None))

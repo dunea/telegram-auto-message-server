@@ -58,6 +58,16 @@ class MessageSourceType(StrEnum):
     AUTO_REPLY = "auto_reply"
 
 
+class ErrorClass(StrEnum):
+    """运行时错误分类。"""
+
+    NONE = "none"
+    TIMEOUT = "timeout"
+    AUTH = "auth"
+    NETWORK = "network"
+    UNKNOWN = "unknown"
+
+
 class TelegramPeerType(StrEnum):
     """Telegram 会话对象类型。"""
 
