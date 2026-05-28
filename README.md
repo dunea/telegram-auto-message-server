@@ -48,11 +48,26 @@
 
 ## 文件存储策略
 
-- 文件先存本地临时目录 storage/temp_files。
+- 文件先存本地临时目录（默认：项目根目录下的 storage/temp_files）。
 - 后续由文件服务上传到 S3。
 - 默认清理策略：
   - 本地总量上限 5GB
   - 文件保留 7 天
   - 每 1 小时执行一次清理
+
+说明：
+
+- LOCAL_TEMP_DIR 若配置为相对路径，会按项目根目录解析，而不是按运行时工作目录解析。
+
+Docker 映射建议：
+
+```yaml
+services:
+   app:
+      environment:
+         - LOCAL_TEMP_DIR=/app/storage/temp_files
+      volumes:
+         - ./storage/temp_files:/app/storage/temp_files
+```
 
 详细架构说明请见 docs/ARCHITECTURE.zh-CN.md。

@@ -5,6 +5,10 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_LOCAL_TEMP_DIR = PROJECT_ROOT / "storage" / "temp_files"
+
+
 class Settings(BaseSettings):
     """全局配置。
 
@@ -38,7 +42,7 @@ class Settings(BaseSettings):
     s3_bucket_name: str = ""
     s3_region_name: str = ""
 
-    local_temp_dir: str = str(Path("storage") / "temp_files")
+    local_temp_dir: str = str(DEFAULT_LOCAL_TEMP_DIR)
     local_temp_max_bytes: int = 5 * 1024 * 1024 * 1024
     local_temp_retention_hours: int = 24 * 7
     local_cleanup_interval_minutes: int = 60
@@ -47,6 +51,12 @@ class Settings(BaseSettings):
     def _validate_pool_shard(self) -> "Settings":
         if self.pool_shard_index >= self.pool_total_shards:
             raise ValueError("pool_shard_index 必须小于 pool_total_shards")
+
+        # 临时目录始终按“项目根目录”解析，避免启动 cwd 变化导致路径漂移。
+        temp_dir = Path(self.local_temp_dir).expanduser()
+        if not temp_dir.is_absolute():
+            temp_dir = PROJECT_ROOT / temp_dir
+        self.local_temp_dir = str(temp_dir.resolve())
         return self
 
 
