@@ -6,9 +6,11 @@ from fastapi import FastAPI
 from app.api.deps import get_session_factory, get_task_scheduler
 from app.api.router import build_api_router
 from app.config import Settings
+from app.repository.message_repository import SqlAlchemyMessageContentMediaRepository, SqlAlchemyMessageContentRepository
 from app.repository.task_repository import (
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
+    SqlAlchemyTaskExecutionLogRepository,
 )
 from app.service.task_service import TaskService
 from app.api.deps import get_telegram_adapter
@@ -28,16 +30,22 @@ def create_api_application(settings: Settings) -> FastAPI:
         session_factory = get_session_factory()
         session = session_factory()
         try:
+            message_content_repository = SqlAlchemyMessageContentRepository(session)
+            message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
             scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
             rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
+            task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(session)
             task_service = TaskService(
                 settings=settings,
                 session=session,
                 session_factory=session_factory,
                 scheduler=scheduler,
                 telegram_adapter=get_telegram_adapter(),
+                message_content_repository=message_content_repository,
+                message_content_media_repository=message_content_media_repository,
                 scheduled_task_repository=scheduled_task_repository,
                 rule_task_repository=rule_task_repository,
+                task_execution_log_repository=task_execution_log_repository,
             )
             task_service.ReloadActiveTasksToScheduler()
         finally:

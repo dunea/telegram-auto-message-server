@@ -5,28 +5,59 @@ from app.models.base import Base, TimestampMixin
 
 
 class TelegramAccount(Base, TimestampMixin):
-    """托管 Telegram 账号。"""
+    """托管 Telegram 账号模型，存储账号身份、会话串与运行状态。"""
 
     __tablename__ = "telegram_account"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    phone_number: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    session_string: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
-    telegram_user_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
-    display_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    is_online: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    proxy_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
+    )
+    phone_number: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, comment="Telegram 账号手机号（唯一）"
+    )
+    session_string: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
+        default=None,
+        comment="Telethon 会话字符串",
+    )
+    telegram_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="Telegram 平台用户 ID"
+    )
+    display_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None, comment="账号展示名称"
+    )
+    is_online: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="账号在线状态"
+    )
+    # 禁用后该账号不参与调度与巡检。
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False, comment="账号启用状态"
+    )
+    proxy_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="关联代理 ID"
+    )
 
 
 class ProxyInfo(Base, TimestampMixin):
-    """代理 IP 信息。"""
+    """代理连接信息模型，为账号提供可复用的网络代理配置。"""
 
     __tablename__ = "proxy_info"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    proxy_host: Mapped[str] = mapped_column(String(255), nullable=False)
-    proxy_port: Mapped[int] = mapped_column(Integer, nullable=False)
-    username: Mapped[str] = mapped_column(String(128), nullable=False, default="")
-    password: Mapped[str] = mapped_column(String(128), nullable=False, default="")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
+    )
+    proxy_host: Mapped[str] = mapped_column(
+        String(255), nullable=False, comment="代理主机地址"
+    )
+    proxy_port: Mapped[int] = mapped_column(Integer, nullable=False, comment="代理端口")
+    username: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, default=None, comment="代理认证用户名"
+    )
+    password: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, default=None, comment="代理认证密码"
+    )
+    # 禁用后该代理不再分配给账号使用。
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False, comment="代理启用状态"
+    )

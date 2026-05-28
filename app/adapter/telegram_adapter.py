@@ -45,6 +45,25 @@ class TelegramAdapter:
             await client.connect()
         return client
 
+    def _extract_peer(self, peer: Any) -> tuple[str, int | None]:
+        if peer is None:
+            return "unknown", None
+
+        for field_name, peer_type in (("user_id", "user"), ("chat_id", "chat"), ("channel_id", "channel")):
+            value = getattr(peer, field_name, None)
+            if value is not None:
+                return peer_type, int(value)
+        return "unknown", None
+
+    def _extract_reply_to_msg_id(self, message: Any) -> int | None:
+        reply_to = getattr(message, "reply_to", None)
+        if reply_to is None:
+            return None
+        reply_id = getattr(reply_to, "reply_to_msg_id", None)
+        if reply_id is None:
+            return None
+        return int(reply_id)
+
     async def IsAuthorized(self, account_id: int, session_string: str) -> bool:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
         return bool(await client.is_user_authorized())
@@ -79,12 +98,23 @@ class TelegramAdapter:
         result: list[dict[str, Any]] = []
         for message in messages:
             message_date = getattr(message, "date", None)
+            peer_type, peer_id = self._extract_peer(getattr(message, "peer_id", None))
+            grouped_id = getattr(message, "grouped_id", None)
+            forward_from = getattr(message, "forward", None)
+            forward_sender = getattr(forward_from, "from_id", None)
+            _, forward_from_user_id = self._extract_peer(forward_sender)
+
             result.append(
                 {
                     "message_id": int(getattr(message, "id", 0) or 0),
                     "sender_id": int(getattr(message, "sender_id", 0) or 0),
                     "text": str(getattr(message, "message", "") or ""),
                     "date": message_date.isoformat() if isinstance(message_date, datetime) else None,
+                    "grouped_id": int(grouped_id) if grouped_id is not None else None,
+                    "peer_type": peer_type,
+                    "peer_id": peer_id,
+                    "reply_to_message_id": self._extract_reply_to_msg_id(message),
+                    "forward_from_user_id": forward_from_user_id,
                 }
             )
         return result
@@ -95,14 +125,26 @@ class TelegramAdapter:
         session_string: str,
         target_identifier: str,
         content: str,
+        media_url: str | None = None,
+        media_caption: str | None = None,
     ) -> dict[str, Any]:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
-        sent_message = await client.send_message(target_identifier, content)
+        if media_url:
+            sent_message = await client.send_file(target_identifier, media_url, caption=media_caption or content or "")
+        else:
+            sent_message = await client.send_message(target_identifier, content)
 
         sent_date = getattr(sent_message, "date", None)
+        peer_type, peer_id = self._extract_peer(getattr(sent_message, "peer_id", None))
+        grouped_id = getattr(sent_message, "grouped_id", None)
         return {
             "message_id": int(getattr(sent_message, "id", 0) or 0),
             "target_identifier": target_identifier,
             "content": content,
             "date": sent_date.isoformat() if isinstance(sent_date, datetime) else None,
+            "grouped_id": int(grouped_id) if grouped_id is not None else None,
+            "peer_type": peer_type,
+            "peer_id": peer_id,
+            "reply_to_message_id": self._extract_reply_to_msg_id(sent_message),
+            "sender_id": int(getattr(sent_message, "sender_id", 0) or 0),
         }

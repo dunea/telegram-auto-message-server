@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.task import AutoReplyRule, RuleMessageTask, ScheduledMessageTask
+from app.models.task import AutoReplyRule, RuleMessageTask, ScheduledMessageTask, TaskExecutionLog
 from app.repository.base_repository import BaseRepository
 
 
@@ -30,6 +30,12 @@ class RuleMessageTaskRepository(ABC):
 class AutoReplyRuleRepository(ABC):
     @abstractmethod
     def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
+        raise NotImplementedError
+
+
+class TaskExecutionLogRepository(ABC):
+    @abstractmethod
+    def FindById(self, log_id: int) -> TaskExecutionLog | None:
         raise NotImplementedError
 
 
@@ -69,3 +75,12 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
             AutoReplyRule.is_active == is_active,
         )
         return list(self._session.scalars(stmt).all())
+
+
+class SqlAlchemyTaskExecutionLogRepository(BaseRepository[TaskExecutionLog], TaskExecutionLogRepository):
+    def __init__(self, session: Session) -> None:
+        super().__init__(session=session, model_type=TaskExecutionLog)
+
+    def FindById(self, log_id: int) -> TaskExecutionLog | None:
+        stmt = select(TaskExecutionLog).where(TaskExecutionLog.id == log_id)
+        return self._session.scalar(stmt)

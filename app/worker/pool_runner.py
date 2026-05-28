@@ -4,10 +4,17 @@ from datetime import datetime
 from app.adapter.mysql_adapter import build_session_factory
 from app.adapter.telegram_adapter import TelegramAdapter
 from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
-from app.repository.message_repository import SqlAlchemyTelegramMessageRepository
+from app.repository.message_repository import (
+    SqlAlchemyMessageContentMediaRepository,
+    SqlAlchemyMessageContentRepository,
+    SqlAlchemyTelegramMessageMediaRepository,
+    SqlAlchemyTelegramMessageRepository,
+    SqlAlchemyTelegramMessageSendAttemptRepository,
+)
 from app.repository.task_repository import (
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
+    SqlAlchemyTaskExecutionLogRepository,
 )
 from app.service.task_service import TaskService
 from app.service.telegram_service import TelegramService
@@ -46,16 +53,22 @@ class PoolRunner:
     async def _reload_sharded_tasks(self) -> None:
         session = self._session_factory()
         try:
+            message_content_repository = SqlAlchemyMessageContentRepository(session)
+            message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
             scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
             rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
+            task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(session)
             task_service = TaskService(
                 settings=self._settings,
                 session=session,
                 session_factory=self._session_factory,
                 scheduler=self._task_scheduler,
                 telegram_adapter=self._telegram_adapter,
+                message_content_repository=message_content_repository,
+                message_content_media_repository=message_content_media_repository,
                 scheduled_task_repository=scheduled_task_repository,
                 rule_task_repository=rule_task_repository,
+                task_execution_log_repository=task_execution_log_repository,
             )
             task_service.ReloadActiveTasksToScheduler()
         finally:
@@ -67,12 +80,20 @@ class PoolRunner:
             session = self._session_factory()
             try:
                 account_repository = SqlAlchemyTelegramAccountRepository(session)
+                message_content_repository = SqlAlchemyMessageContentRepository(session)
+                message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
                 message_repository = SqlAlchemyTelegramMessageRepository(session)
+                message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
+                message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
                 telegram_service = TelegramService(
                     settings=self._settings,
                     session=session,
                     account_repository=account_repository,
+                    message_content_repository=message_content_repository,
+                    message_content_media_repository=message_content_media_repository,
                     message_repository=message_repository,
+                    message_media_repository=message_media_repository,
+                    message_send_attempt_repository=message_send_attempt_repository,
                     telegram_adapter=self._telegram_adapter,
                 )
                 result = await telegram_service.EnsureAccountOnline(account_id=account_id)

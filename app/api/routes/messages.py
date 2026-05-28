@@ -22,10 +22,29 @@ async def send_message(
     telegram_service: TelegramService = Depends(get_telegram_service),
 ) -> SendMessageResult:
     try:
+        message_content = payload.message_content
         result = await telegram_service.SendMessage(
             account_id=payload.account_id,
             target_identifier=payload.target_identifier,
             content=payload.content,
+            content_type=(message_content.content_type if message_content else "text"),
+            text_content=(message_content.text_content if message_content else None),
+            media_type=(message_content.media_type if message_content else None),
+            media_url=(message_content.media_url if message_content else None),
+            media_key=(message_content.media_key if message_content else None),
+            emoji=(message_content.emoji if message_content else None),
+            caption=(message_content.caption if message_content else None),
+            media_items=([
+                {
+                    "media_type": item.media_type,
+                    "media_url": item.media_url,
+                    "media_key": item.media_key,
+                    "caption": item.caption,
+                    "sort_order": item.sort_order,
+                }
+                for item in message_content.media_items
+            ] if message_content else None),
+            source_type=payload.source_type,
         )
         return SendMessageResult(**result)
     except ValueError as exc:
