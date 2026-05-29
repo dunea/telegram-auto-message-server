@@ -3,9 +3,10 @@
 提供消息发送、发送记录查询与来源标记透传能力。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_current_user, get_telegram_service
+from app.api.http_errors import map_http_exceptions
 from app.schema.message import SendMessageRequest, SendMessageResult
 from app.service.telegram_service import TelegramService
 
@@ -56,7 +57,7 @@ async def send_message(
 
     业务校验失败时，ValueError 映射为 404。
     """
-    try:
+    with map_http_exceptions((ValueError, 404)):
         message_content = payload.message_content
         result = await telegram_service.SendMessage(
             account_id=payload.account_id,
@@ -83,5 +84,3 @@ async def send_message(
             source_type=payload.source_type,
         )
         return SendMessageResult(**result)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc

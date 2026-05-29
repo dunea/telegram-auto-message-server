@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import random
 from datetime import datetime
 from time import perf_counter
@@ -19,12 +20,18 @@ from app.repository.task_repository import (
     SqlAlchemyScheduledMessageTaskRepository,
     SqlAlchemyTaskExecutionLogRepository,
 )
+from app.repository.file_repository import SqlAlchemyFileRecordRepository
+from app.service.file_service import FileService
 from app.service.task_service import TaskService
 from app.service.telegram_service import TelegramService
+from app.adapter.s3_adapter import S3Adapter
 from app.worker.task_scheduler import TaskScheduler
 from app.common.error_classifier import classify_exception
 
 from app.config import Settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class PoolRunner:
@@ -56,7 +63,8 @@ class PoolRunner:
             "event": event,
             **fields,
         }
-        print(json.dumps(payload, ensure_ascii=False))
+        level_no = getattr(logging, str(level).upper(), logging.INFO)
+        logger.log(level_no, json.dumps(payload, ensure_ascii=False))
 
     def _assert_shard_guard(self) -> None:
         if not self._settings.pool_shard_guard_enabled:
@@ -106,6 +114,35 @@ class PoolRunner:
             task_service.ReloadActiveTasksToScheduler()
         finally:
             session.close()
+
+    async def _cleanup_expired_files(self) -> None:
+        """执行一轮过期文件清理。"""
+        session = self._session_factory()
+        try:
+            file_repository = SqlAlchemyFileRecordRepository(session)
+            file_service = FileService(
+                settings=self._settings,
+                session=session,
+                file_record_repository=file_repository,
+                s3_adapter=S3Adapter(settings=self._settings),
+            )
+            result = file_service.CleanupExpiredFiles()
+            self._log_event(
+                "file_cleanup_completed",
+                cleaned=int(result.get("cleaned", 0)),
+                s3_delete_failed=int(result.get("s3_delete_failed", 0)),
+            )
+        finally:
+            session.close()
+
+    def _register_system_jobs(self) -> None:
+        """注册系统级周期任务。"""
+        interval_seconds = max(60, int(self._settings.local_cleanup_interval_minutes) * 60)
+        self._task_scheduler.AddOrReplaceIntervalJob(
+            job_id="system:file_cleanup",
+            seconds=interval_seconds,
+            callback=self._cleanup_expired_files,
+        )
 
     async def _login_account_with_limit(self, account_id: int) -> dict[str, int | bool]:
         """登录单个账号并刷新在线状态，受并发上限控制。"""
@@ -273,6 +310,7 @@ class PoolRunner:
 
     async def run_forever(self) -> None:
         await self._task_scheduler.Start()
+        self._register_system_jobs()
         await self._reload_sharded_tasks()
         try:
             while True:

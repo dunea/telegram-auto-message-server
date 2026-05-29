@@ -3,10 +3,11 @@
 对外提供定时任务与规则任务的创建入口，实际调度由 TaskService/TaskScheduler 负责。
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi import Query
 
 from app.api.deps import get_current_user, get_task_service
+from app.api.http_errors import map_http_exceptions
 from app.schema.task import (
     CreateRuleTaskRequest,
     CreateScheduledTaskRequest,
@@ -42,10 +43,8 @@ async def create_schedule_task(
 
     业务校验失败时，ValueError 映射为 400。
     """
-    try:
+    with map_http_exceptions((ValueError, 400)):
         return task_service.RegisterScheduledTask(payload.model_dump())
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/schedule", response_model=ScheduledTaskListResponse)
@@ -65,10 +64,8 @@ async def get_schedule_task(
     task_service: TaskService = Depends(get_task_service),
 ) -> ScheduledTaskResponse:
     """获取单个定时消息。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         return ScheduledTaskResponse(**task_service.GetScheduledTaskById(task_id=task_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.put("/schedule/{task_id}", response_model=ScheduledTaskResponse)
@@ -78,11 +75,9 @@ async def update_schedule_task(
     task_service: TaskService = Depends(get_task_service),
 ) -> ScheduledTaskResponse:
     """修改定时消息。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         result = task_service.UpdateScheduledTask(task_id=task_id, payload=payload.model_dump())
         return ScheduledTaskResponse(**result)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.patch("/schedule/{task_id}/active", response_model=ScheduledTaskResponse)
@@ -92,11 +87,9 @@ async def update_schedule_task_active(
     task_service: TaskService = Depends(get_task_service),
 ) -> ScheduledTaskResponse:
     """启用或停用定时消息。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         result = task_service.SetScheduledTaskActive(task_id=task_id, is_active=payload.is_active)
         return ScheduledTaskResponse(**result)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.delete("/schedule/{task_id}")
@@ -105,10 +98,8 @@ async def delete_schedule_task(
     task_service: TaskService = Depends(get_task_service),
 ) -> dict:
     """软删除定时消息。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         return task_service.SoftDeleteScheduledTask(task_id=task_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/rule")
@@ -134,7 +125,5 @@ async def create_rule_task(
 
     业务校验失败时，ValueError 映射为 400。
     """
-    try:
+    with map_http_exceptions((ValueError, 400)):
         return task_service.RegisterRuleTask(payload.model_dump())
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc

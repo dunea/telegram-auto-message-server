@@ -18,6 +18,13 @@
 | consecutive_degraded_rounds | >=2 | >=3 | 回滚到最近稳定参数组 | 连续 3 轮未恢复 | 回滚后仍异常即跨团队联动 |
 | retry_ratio | 连续 2 轮 >=20% | 连续 3 轮 >=25% | `POOL_LOGIN_RETRY_BACKOFF_SECONDS` +1 秒 | `success_rate` 继续下降 | 3 轮无改善恢复原值 |
 
+## 2.1 readiness 快速判定（新增）
+
+- `GET /api/v1/health/readiness` 返回 `503 + 调度器未运行`：
+  1. 先重启当前实例。
+  2. 1~2 个周期内复核 `scheduler.running=true`。
+  3. 未恢复立即回滚并按 P1 升级。
+
 ## 3. 夜班纪律（仅 3 条）
 
 1. 每次只改 1~2 个参数，禁止叠加试错。

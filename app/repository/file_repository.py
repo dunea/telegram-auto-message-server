@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -14,6 +15,10 @@ class FileRecordRepository(ABC):
 
     @abstractmethod
     def FindAllByStatus(self, status: str) -> list[FileRecord]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:
         raise NotImplementedError
 
     @abstractmethod
@@ -43,6 +48,19 @@ class SqlAlchemyFileRecordRepository(BaseRepository[FileRecord], FileRecordRepos
 
     def FindAllByStatus(self, status: str) -> list[FileRecord]:
         stmt = select(FileRecord).where(FileRecord.status == status)
+        return list(self._session.scalars(stmt).all())
+
+    def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:
+        stmt = (
+            select(FileRecord)
+            .where(
+                FileRecord.status == status,
+                FileRecord.expires_at.is_not(None),
+                FileRecord.expires_at <= expires_before,
+            )
+            .order_by(FileRecord.id.asc())
+            .limit(max(1, int(limit)))
+        )
         return list(self._session.scalars(stmt).all())
 
     def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:

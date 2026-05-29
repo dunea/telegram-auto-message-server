@@ -31,7 +31,36 @@
 - `timeout_fail_count`：超时失败计数，升高通常指向网络或代理问题。
 - `non_retryable_fail_count`：不可重试失败计数，升高通常指向鉴权或会话问题。
 
-## 3.1 告警阈值建议表
+readiness 辅助判读：
+
+- `GET /api/v1/health/readiness` 返回 `200`：实例对外可服务。
+- 返回 `503 + 数据库不可用`：优先走数据库故障路径。
+- 返回 `503 + 调度器未运行`：优先走调度器故障路径，排查实例生命周期与主循环状态。
+
+## 3.1 readiness 返回“调度器未运行”处置卡
+
+触发条件：
+
+- `GET /api/v1/health/readiness` 返回 `503` 且 `detail=调度器未运行`。
+
+判定步骤：
+
+1. 先区分运行模式：`MODE=api` 或 `MODE=pool`。
+2. `MODE=api`：检查 API 生命周期是否完整执行、是否出现启动后异常提前退出。
+3. `MODE=pool`：检查号池主循环是否中断、是否触发分片漂移保护退出。
+
+首步动作：
+
+1. 重启当前实例并观察 1~2 个扫描周期。
+2. 复核 `/api/v1/service/status` 中 `scheduler.running` 是否恢复为 `true`。
+3. 若仍未恢复，回滚到最近稳定版本并按 P1 升级。
+
+升级条件：
+
+- 重启后 5 分钟仍 `scheduler.running=false`。
+- 多实例同时出现 readiness 失败。
+
+## 3.2 告警阈值建议表
 
 说明：以下阈值为值班建议口径，可按实例规模微调。`retry_ratio = retry_count / processed_accounts`。
 

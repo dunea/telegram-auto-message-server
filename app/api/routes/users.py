@@ -1,8 +1,9 @@
 """用户注册、登录与鉴权信息 API 路由。"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.api.deps import get_auth_service, get_current_user
+from app.api.http_errors import map_http_exceptions
 from app.models.user import User
 from app.schema.user import AccessTokenResponse, LoginUserRequest, RefreshTokenRequest, RegisterUserRequest, UserProfileResponse
 from app.service.auth_service import AuthService
@@ -16,11 +17,9 @@ def register_user(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> UserProfileResponse:
     """注册新用户。"""
-    try:
+    with map_http_exceptions((ValueError, 400)):
         result = auth_service.RegisterUser(email=payload.email, password=payload.password)
         return UserProfileResponse(**result)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/login", response_model=AccessTokenResponse)
@@ -29,13 +28,9 @@ def login_user(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> AccessTokenResponse:
     """用户登录并获取访问令牌。"""
-    try:
+    with map_http_exceptions((PermissionError, 403), (ValueError, 400)):
         result = auth_service.LoginUser(email=payload.email, password=payload.password)
         return AccessTokenResponse(**result)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/refresh-token", response_model=AccessTokenResponse)
@@ -44,13 +39,9 @@ def refresh_access_token(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> AccessTokenResponse:
     """使用 refresh token 刷新 access token，并轮换 refresh token。"""
-    try:
+    with map_http_exceptions((PermissionError, 403), (ValueError, 401)):
         result = auth_service.RefreshAccessToken(refresh_token=payload.refresh_token)
         return AccessTokenResponse(**result)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
 
 
 @router.get("/me")

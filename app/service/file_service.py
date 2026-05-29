@@ -1,7 +1,8 @@
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import mimetypes
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from app.repository.file_repository import SqlAlchemyFileRecordRepository
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+logger = logging.getLogger(__name__)
 
 
 class FileService:
@@ -89,11 +91,24 @@ class FileService:
         self._session.flush()
 
         object_key = f"uploads/{datetime.utcnow().strftime('%Y%m%d')}/{file_token}_{safe_name}"
-        s3_url = self._s3_adapter.UploadFile(local_path=str(local_path), key=object_key)
+        s3_url = ""
+        try:
+            s3_url = self._s3_adapter.UploadFile(local_path=str(local_path), key=object_key)
+        except Exception:
+            logger.exception(
+                "S3 上传失败，文件保留 pending 状态以便后续补偿",
+                extra={"object_key": object_key, "local_path": str(local_path)},
+            )
+
         if s3_url:
             file_record.s3_key = object_key
             file_record.s3_url = s3_url
             file_record.status = "uploaded"
+        else:
+            logger.warning(
+                "文件未上传到 S3，当前保持 pending 状态",
+                extra={"object_key": object_key, "file_record_id": int(file_record.id or 0)},
+            )
 
         self._session.commit()
         result = self._to_item(file_record)
@@ -160,3 +175,40 @@ class FileService:
             "s3_key": result["s3_key"],
             "s3_url": result["s3_url"],
         }
+
+    def CleanupExpiredFiles(self, batch_limit: int = 200) -> dict[str, int]:
+        """清理过期文件。
+
+        说明：
+        1. 仅处理 pending/uploaded 且 expires_at 已过期的记录；
+        2. 清理本地文件与 S3 对象后，将状态统一置为 deleted。
+        """
+        now = datetime.now(timezone.utc)
+        cleaned = 0
+        s3_delete_failed = 0
+
+        for status in ("pending", "uploaded"):
+            expired_records = self._file_record_repository.FindAllByStatusAndExpiresAtBefore(
+                status=status,
+                expires_before=now,
+                limit=batch_limit,
+            )
+            for file_record in expired_records:
+                local_path = Path(file_record.local_path)
+                local_path.unlink(missing_ok=True)
+
+                if file_record.s3_key:
+                    try:
+                        self._s3_adapter.DeleteFile(key=file_record.s3_key)
+                    except Exception:
+                        s3_delete_failed += 1
+                        logger.exception(
+                            "清理过期文件时删除 S3 对象失败",
+                            extra={"file_record_id": int(file_record.id), "s3_key": file_record.s3_key},
+                        )
+
+                file_record.status = "deleted"
+                cleaned += 1
+
+        self._session.commit()
+        return {"cleaned": cleaned, "s3_delete_failed": s3_delete_failed}

@@ -49,6 +49,20 @@
 - 回退条件：5 轮后仍降级，回滚到上一稳定参数快照。
 - 升级条件：连续 3 轮降级未恢复，进入 Critical。
 
+### 场景 D：readiness 返回“调度器未运行”
+
+- 触发：`GET /api/v1/health/readiness` 返回 `503` 且 `detail=调度器未运行`。
+- 先判定范围：
+  - 若 `MODE=api`：重点检查 API 进程启动生命周期是否完整执行（scheduler Start/Shutdown 路径）。
+  - 若 `MODE=pool`：重点检查号池主循环是否异常退出、是否触发分片漂移保护退出。
+- 首步动作：
+  - 立即重启对应服务实例，观察 1~2 个扫描周期。
+  - 复核 `service/status` 中 `scheduler.running` 是否恢复为 `true`。
+  - 若仍未恢复，优先回滚到上一稳定版本并升级 P1。
+- 升级条件：
+  - 重启后 5 分钟仍 `scheduler.running=false`。
+  - 或出现多实例同时 readiness 失败。
+
 ## 4. 分级响应时限
 
 - P3：15 分钟内完成首次定位与记录。

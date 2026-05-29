@@ -1,4 +1,5 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 
 from pydantic import Field, model_validator
@@ -59,13 +60,34 @@ class Settings(BaseSettings):
 
     local_temp_dir: str = str(DEFAULT_LOCAL_TEMP_DIR)
     local_temp_max_bytes: int = 5 * 1024 * 1024 * 1024
-    local_temp_retention_hours: int = 24 * 7
-    local_cleanup_interval_minutes: int = 60
+    local_temp_retention_hours: int = Field(default=24 * 7, ge=1)
+    local_cleanup_interval_minutes: int = Field(default=60, ge=1)
+
+    db_pool_size: int = Field(default=25, ge=1, le=200)
+    db_pool_max_overflow: int = Field(default=15, ge=0, le=200)
+    db_pool_recycle_seconds: int = Field(default=3600, ge=30)
+    db_pool_timeout_seconds: int = Field(default=30, ge=1)
 
     @model_validator(mode="after")
     def _validate_pool_shard(self) -> "Settings":
+        mode = self.mode.strip().lower()
+        if mode not in {"api", "pool"}:
+            raise ValueError("mode 仅支持 api 或 pool")
+        self.mode = mode
+
         if self.pool_shard_index >= self.pool_total_shards:
             raise ValueError("pool_shard_index 必须小于 pool_total_shards")
+
+        # pool 模式必须配置 Telegram API 参数，避免运行到任务阶段才失败。
+        if self.mode == "pool":
+            if int(self.telegram_api_id) <= 0:
+                raise ValueError("pool 模式下 telegram_api_id 必须大于 0")
+            if not str(self.telegram_api_hash).strip():
+                raise ValueError("pool 模式下 telegram_api_hash 不能为空")
+
+        # 仅在非测试场景做最小安全提示，避免将示例密钥带到线上环境。
+        if not os.getenv("PYTEST_CURRENT_TEST") and self.jwt_secret_key == "change-this-in-production":
+            raise ValueError("jwt_secret_key 仍为示例值，请在 .env 中配置生产密钥")
 
         # 临时目录始终按“项目根目录”解析，避免启动 cwd 变化导致路径漂移。
         temp_dir = Path(self.local_temp_dir).expanduser()

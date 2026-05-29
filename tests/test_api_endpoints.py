@@ -6,7 +6,9 @@ from fastapi.testclient import TestClient
 from app.api.deps import (
     get_auto_reply_service,
     get_current_user,
+    get_db_session,
     get_file_service,
+    get_task_scheduler,
     get_task_service,
     get_telegram_service,
 )
@@ -179,6 +181,20 @@ class FakeFileService:
         return {"file_id": file_id, "deleted": True}
 
 
+class FakeDbSession:
+    def execute(self, _statement) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+class FakeScheduler:
+    def __init__(self, running: bool = True, job_count: int = 0) -> None:
+        self.running = running
+        self.job_count = job_count
+
+
 def _build_test_client() -> TestClient:
     app = FastAPI()
     app.include_router(build_api_router())
@@ -187,6 +203,8 @@ def _build_test_client() -> TestClient:
     app.dependency_overrides[get_auto_reply_service] = lambda: FakeAutoReplyService()
     app.dependency_overrides[get_file_service] = lambda: FakeFileService()
     app.dependency_overrides[get_current_user] = lambda: {"user_id": 1}
+    app.dependency_overrides[get_db_session] = lambda: FakeDbSession()
+    app.dependency_overrides[get_task_scheduler] = lambda: FakeScheduler(running=True, job_count=2)
     return TestClient(app)
 
 
@@ -339,3 +357,52 @@ def test_files_failure_paths() -> None:
 
     delete_resp = client.delete("/api/v1/files/404")
     assert delete_resp.status_code == 404
+
+
+def test_health_and_readiness_success() -> None:
+    client = _build_test_client()
+
+    health_resp = client.get("/api/v1/health")
+    assert health_resp.status_code == 200
+    assert health_resp.json()["status"] == "ok"
+
+    readiness_resp = client.get("/api/v1/health/readiness")
+    assert readiness_resp.status_code == 200
+    assert readiness_resp.json()["status"] == "ready"
+    assert readiness_resp.json()["database"] == "ok"
+
+
+def test_readiness_returns_503_when_database_unavailable() -> None:
+    class BrokenDbSession:
+        def execute(self, _statement) -> None:
+            raise RuntimeError("db down")
+
+        def close(self) -> None:
+            return None
+
+    app = FastAPI()
+    app.include_router(build_api_router())
+    app.dependency_overrides[get_db_session] = lambda: BrokenDbSession()
+    client = TestClient(app)
+
+    readiness_resp = client.get("/api/v1/health/readiness")
+    assert readiness_resp.status_code == 503
+
+
+def test_readiness_returns_503_when_scheduler_not_running() -> None:
+    class HealthyDbSession:
+        def execute(self, _statement) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    app = FastAPI()
+    app.include_router(build_api_router())
+    app.dependency_overrides[get_db_session] = lambda: HealthyDbSession()
+    app.dependency_overrides[get_task_scheduler] = lambda: FakeScheduler(running=False, job_count=0)
+    client = TestClient(app)
+
+    readiness_resp = client.get("/api/v1/health/readiness")
+    assert readiness_resp.status_code == 503
+    assert readiness_resp.json()["detail"] == "调度器未运行"

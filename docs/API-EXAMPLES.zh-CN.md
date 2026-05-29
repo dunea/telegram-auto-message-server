@@ -75,9 +75,78 @@ Content-Type: application/json
 Authorization: Bearer <jwt-token>
 ```
 
-## 1. 账号登录与管理
+### 0.5 健康与就绪检查（值班/探针）
 
-### 1.1 手机号请求验证码
+#### 0.5.1 存活检查（liveness）
+
+请求：
+
+```http
+GET /api/v1/health
+```
+
+响应：
+
+```json
+{
+  "status": "ok"
+}
+```
+
+#### 0.5.2 就绪检查成功（readiness）
+
+请求：
+
+```http
+GET /api/v1/health/readiness
+```
+
+响应：
+
+```json
+{
+  "status": "ready",
+  "database": "ok",
+  "scheduler": {
+    "running": true,
+    "job_count": 2
+  }
+}
+```
+
+#### 0.5.3 就绪检查失败：数据库不可用
+
+响应（503）：
+
+```json
+{
+  "detail": "数据库不可用"
+}
+```
+
+#### 0.5.4 就绪检查失败：调度器未运行
+
+响应（503）：
+
+```json
+{
+  "detail": "调度器未运行"
+}
+```
+
+前端/运维脚本分流建议：
+
+1. `detail=数据库不可用`：走数据库故障路径。
+2. `detail=调度器未运行`：优先重启实例并复核 `/api/v1/service/status` 的 `scheduler.running`。
+
+## 1. 健康与就绪检查
+
+- `GET /api/v1/health`：用于存活探针，返回进程可达状态。
+- `GET /api/v1/health/readiness`：用于就绪探针，返回数据库与调度器状态。
+
+## 2. 账号登录与管理
+
+### 2.1 手机号请求验证码
 
 请求：
 
@@ -105,7 +174,7 @@ Content-Type: application/json
 }
 ```
 
-### 1.2 提交验证码
+### 2.2 提交验证码
 
 请求：
 
@@ -133,7 +202,7 @@ Content-Type: application/json
 }
 ```
 
-### 1.3 提交二级密码
+### 2.3 提交二级密码
 
 请求：
 
@@ -146,7 +215,7 @@ Content-Type: application/json
 }
 ```
 
-### 1.4 通过 session 登录
+### 2.4 通过 session 登录
 
 请求：
 
@@ -161,7 +230,7 @@ Content-Type: application/json
 }
 ```
 
-### 1.5 启停账号
+### 2.5 启停账号
 
 请求：
 
@@ -174,7 +243,7 @@ Content-Type: application/json
 }
 ```
 
-### 1.6 删除账号（软删除）
+### 2.6 删除账号（软删除）
 
 请求：
 
@@ -182,9 +251,9 @@ Content-Type: application/json
 DELETE /api/v1/accounts/2
 ```
 
-## 2. 定时消息
+## 3. 定时消息
 
-### 2.1 新增定时消息
+### 3.1 新增定时消息
 
 请求：
 
@@ -201,7 +270,7 @@ Content-Type: application/json
 }
 ```
 
-### 2.2 修改定时消息
+### 3.2 修改定时消息
 
 请求：
 
@@ -217,7 +286,7 @@ Content-Type: application/json
 }
 ```
 
-### 2.3 启停定时消息
+### 3.3 启停定时消息
 
 请求：
 
@@ -230,7 +299,7 @@ Content-Type: application/json
 }
 ```
 
-### 2.4 查询定时消息列表
+### 3.4 查询定时消息列表
 
 请求：
 
@@ -238,7 +307,7 @@ Content-Type: application/json
 GET /api/v1/tasks/schedule?account_id=1&limit=20&offset=0
 ```
 
-### 2.5 删除定时消息（软删除）
+### 3.5 删除定时消息（软删除）
 
 请求：
 
@@ -246,9 +315,9 @@ GET /api/v1/tasks/schedule?account_id=1&limit=20&offset=0
 DELETE /api/v1/tasks/schedule/10
 ```
 
-## 3. 回复消息（自动回复规则）
+## 4. 回复消息（自动回复规则）
 
-### 3.1 新增回复规则
+### 4.1 新增回复规则
 
 请求：
 
@@ -263,7 +332,7 @@ Content-Type: application/json
 }
 ```
 
-### 3.2 修改回复规则
+### 4.2 修改回复规则
 
 请求：
 
@@ -277,7 +346,7 @@ Content-Type: application/json
 }
 ```
 
-### 3.3 启停回复规则
+### 4.3 启停回复规则
 
 请求：
 
@@ -290,7 +359,7 @@ Content-Type: application/json
 }
 ```
 
-### 3.4 查询回复规则列表
+### 4.4 查询回复规则列表
 
 请求：
 
@@ -298,7 +367,7 @@ Content-Type: application/json
 GET /api/v1/auto-reply-rules?account_id=1&limit=20&offset=0
 ```
 
-### 3.5 删除回复规则（软删除）
+### 4.5 删除回复规则（软删除）
 
 请求：
 
@@ -306,9 +375,9 @@ GET /api/v1/auto-reply-rules?account_id=1&limit=20&offset=0
 DELETE /api/v1/auto-reply-rules/2
 ```
 
-## 4. 文件管理
+## 5. 文件管理
 
-### 4.1 上传文件
+### 5.1 上传文件
 
 请求：
 
@@ -319,7 +388,7 @@ Content-Type: multipart/form-data
 file=@hello.txt
 ```
 
-### 4.2 下载文件
+### 5.2 下载文件
 
 请求：
 
@@ -327,7 +396,7 @@ file=@hello.txt
 GET /api/v1/files/11/download
 ```
 
-### 4.3 删除文件（软删除）
+### 5.3 删除文件（软删除）
 
 请求：
 
@@ -335,7 +404,7 @@ GET /api/v1/files/11/download
 DELETE /api/v1/files/11
 ```
 
-### 4.4 查询文件列表
+### 5.4 查询文件列表
 
 请求：
 
@@ -343,12 +412,12 @@ DELETE /api/v1/files/11
 GET /api/v1/files?status=uploaded&limit=20&offset=0
 ```
 
-## 5. 常见错误语义
+## 6. 常见错误语义
 
 - 400：请求参数或业务状态不合法。
 - 404：资源不存在（账号/任务/回复规则/文件）。
 
-## 6. curl 快速联调清单
+## 7. curl 快速联调清单
 
 建议先设置基础地址变量（Windows PowerShell）：
 
@@ -356,7 +425,7 @@ GET /api/v1/files?status=uploaded&limit=20&offset=0
 $BASE_URL = "http://localhost:8000/api/v1"
 ```
 
-### 6.1 账号管理
+### 7.1 账号管理
 
 请求验证码：
 
@@ -382,7 +451,7 @@ curl -X PATCH "$BASE_URL/accounts/1/active" `
   -d '{"is_active":false}'
 ```
 
-### 6.2 定时消息
+### 7.2 定时消息
 
 创建定时消息：
 
@@ -412,7 +481,7 @@ curl -X PATCH "$BASE_URL/tasks/schedule/10/active" `
 curl -X DELETE "$BASE_URL/tasks/schedule/10"
 ```
 
-### 6.3 自动回复规则
+### 7.3 自动回复规则
 
 创建规则：
 
@@ -442,7 +511,7 @@ curl -X PATCH "$BASE_URL/auto-reply-rules/1/active" `
 curl -X DELETE "$BASE_URL/auto-reply-rules/1"
 ```
 
-### 6.4 文件管理
+### 7.4 文件管理
 
 上传文件：
 
@@ -466,4 +535,29 @@ curl -X GET "$BASE_URL/files/11/download" -o downloaded_hello.txt
 
 ```powershell
 curl -X DELETE "$BASE_URL/files/11"
+```
+
+### 7.5 健康与就绪检查
+
+存活检查：
+
+```powershell
+curl -X GET "$BASE_URL/health"
+```
+
+就绪检查：
+
+```powershell
+curl -X GET "$BASE_URL/health/readiness"
+```
+
+按错误类型分流（PowerShell 示例）：
+
+```powershell
+$resp = curl -X GET "$BASE_URL/health/readiness"
+if ($resp.detail -eq "数据库不可用") {
+  Write-Host "走数据库故障路径"
+} elseif ($resp.detail -eq "调度器未运行") {
+  Write-Host "重启实例并复核 scheduler.running"
+}
 ```

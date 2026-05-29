@@ -234,18 +234,63 @@ POOL_SHARD_GUARD_ENABLED=true
 
 ### 鉴权说明
 
-- 除 `POST /users/register`、`POST /users/login` 与 `GET /health` 外，其余业务接口默认需要 Bearer 令牌。
+- 除 `POST /users/register`、`POST /users/login`、`POST /users/refresh-token`、`GET /health` 与 `GET /health/readiness` 外，其余业务接口默认需要 Bearer 令牌。
 - 登录成功后请在请求头中携带：`Authorization: Bearer <access_token>`。
 - refresh token 仅用于 `POST /users/refresh-token`，不能直接访问业务接口。
 
-### 0) 用户注册与登录
+### 0) 健康与就绪检查（探针与值班）
+
+- `GET /health`：存活检查（liveness），用于判定进程是否可达。
+- `GET /health/readiness`：就绪检查（readiness），用于判定依赖是否可用。
+- readiness 成功响应（200）包含：`status=ready`、`database=ok`、`scheduler.running=true` 与 `scheduler.job_count`。
+- readiness 失败响应（503）常见两类：`detail=数据库不可用`、`detail=调度器未运行`。
+- 分流建议：`数据库不可用` 走数据库故障路径；`调度器未运行` 优先重启实例并复核 `GET /service/status` 的 `scheduler.running`。
+
+`GET /health` 成功响应示例：
+
+```json
+{
+   "status": "ok"
+}
+```
+
+`GET /health/readiness` 成功响应示例：
+
+```json
+{
+   "status": "ready",
+   "database": "ok",
+   "scheduler": {
+      "running": true,
+      "job_count": 2
+   }
+}
+```
+
+`GET /health/readiness` 失败响应示例（数据库不可用，503）：
+
+```json
+{
+   "detail": "数据库不可用"
+}
+```
+
+`GET /health/readiness` 失败响应示例（调度器未运行，503）：
+
+```json
+{
+   "detail": "调度器未运行"
+}
+```
+
+### 1) 用户注册与登录
 
 - `POST /users/register`：用户注册（email + password）。
 - `POST /users/login`：用户登录并获取 access token + refresh token。
 - `POST /users/refresh-token`：使用 refresh token 刷新并轮换 token 对。
 - `GET /users/me`：获取当前登录用户信息（需要 Bearer token）。
 
-### 1) 账号管理
+### 2) 账号管理
 
 - `POST /accounts/login/phone/request-code`：手机号请求验证码。
 - `POST /accounts/{account_id}/login/phone/verify-code`：提交验证码。
@@ -254,7 +299,7 @@ POOL_SHARD_GUARD_ENABLED=true
 - `PATCH /accounts/{account_id}/active`：启用/停用账号。
 - `DELETE /accounts/{account_id}`：软删除账号。
 
-### 2) 定时消息
+### 3) 定时消息
 
 - `POST /tasks/schedule`：新增定时消息。
 - `PUT /tasks/schedule/{task_id}`：修改定时消息。
@@ -262,7 +307,7 @@ POOL_SHARD_GUARD_ENABLED=true
 - `PATCH /tasks/schedule/{task_id}/active`：启用/停用定时消息。
 - `GET /tasks/schedule`：获取定时消息列表（支持 `account_id`、`limit`、`offset`）。
 
-### 3) 回复消息（自动回复规则）
+### 4) 回复消息（自动回复规则）
 
 - `POST /auto-reply-rules`：新增回复消息规则。
 - `PUT /auto-reply-rules/{rule_id}`：修改回复消息规则。
@@ -270,7 +315,7 @@ POOL_SHARD_GUARD_ENABLED=true
 - `PATCH /auto-reply-rules/{rule_id}/active`：启用/停用回复消息规则。
 - `GET /auto-reply-rules`：获取回复消息列表（支持 `account_id`、`limit`、`offset`）。
 
-### 4) 文件管理
+### 5) 文件管理
 
 - `POST /files/upload`：上传文件（`multipart/form-data`）。
 - `GET /files/{file_id}/download`：下载文件。
@@ -323,4 +368,4 @@ services:
 
 接口请求/响应示例请见 docs/API-EXAMPLES.zh-CN.md。
 
-curl 快速联调清单请见 docs/API-EXAMPLES.zh-CN.md 第 6 节。
+curl 快速联调清单请见 docs/API-EXAMPLES.zh-CN.md 第 7 节。

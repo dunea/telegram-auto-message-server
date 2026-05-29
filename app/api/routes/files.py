@@ -1,9 +1,10 @@
 """文件管理 API 路由。"""
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import Response
 
 from app.api.deps import get_current_user, get_file_service
+from app.api.http_errors import map_http_exceptions
 from app.schema.file import FileItemResponse, FileListResponse, UploadFileResponse
 from app.service.file_service import FileService
 
@@ -16,12 +17,10 @@ async def upload_file(
     file_service: FileService = Depends(get_file_service),
 ) -> UploadFileResponse:
     """上传文件。"""
-    try:
+    with map_http_exceptions((ValueError, 400)):
         content = await file.read()
         result = file_service.UploadFile(filename=file.filename or "unnamed.bin", content=content)
         return UploadFileResponse(**result)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("", response_model=FileListResponse)
@@ -42,11 +41,9 @@ async def get_file_item(
     file_service: FileService = Depends(get_file_service),
 ) -> FileItemResponse:
     """查询单个文件信息。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         result = file_service.GetFileById(file_id=file_id)
         return FileItemResponse(**result)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{file_id}/download")
@@ -55,15 +52,13 @@ async def download_file(
     file_service: FileService = Depends(get_file_service),
 ) -> Response:
     """下载文件。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         content, filename, mime_type = file_service.DownloadFile(file_id=file_id)
         return Response(
             content=content,
             media_type=mime_type,
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.delete("/{file_id}")
@@ -72,7 +67,5 @@ async def delete_file(
     file_service: FileService = Depends(get_file_service),
 ) -> dict:
     """软删除文件。"""
-    try:
+    with map_http_exceptions((ValueError, 404)):
         return file_service.SoftDeleteFile(file_id=file_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
