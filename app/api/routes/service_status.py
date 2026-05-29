@@ -1,3 +1,8 @@
+"""服务状态观测 API 路由。
+
+聚合返回服务模式、号池分片配置与调度器运行状态，便于排障与巡检。
+"""
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
@@ -10,7 +15,13 @@ router = APIRouter(prefix="/service", tags=["service"])
 
 @router.get("/status")
 def get_service_status() -> dict:
-    """获取当前服务状态与号池关键配置。"""
+    """获取当前服务状态与号池关键配置。
+
+    关键点：
+    - service: 服务元信息与当前 UTC 时间；
+    - pool: 号池并发、分片与扫描间隔等关键运行参数；
+    - scheduler: 调度器是否运行、任务数量与任务 ID 列表。
+    """
     settings = get_settings()
     scheduler = get_task_scheduler()
 
