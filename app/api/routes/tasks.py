@@ -4,9 +4,17 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Query
 
 from app.api.deps import get_task_service
-from app.schema.task import CreateRuleTaskRequest, CreateScheduledTaskRequest
+from app.schema.task import (
+    CreateRuleTaskRequest,
+    CreateScheduledTaskRequest,
+    ScheduledTaskListResponse,
+    ScheduledTaskResponse,
+    UpdateScheduledTaskRequest,
+    UpdateTaskActiveRequest,
+)
 from app.service.task_service import TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -38,6 +46,69 @@ async def create_schedule_task(
         return task_service.RegisterScheduledTask(payload.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/schedule", response_model=ScheduledTaskListResponse)
+async def list_schedule_tasks(
+    account_id: int = Query(..., ge=1),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    task_service: TaskService = Depends(get_task_service),
+) -> ScheduledTaskListResponse:
+    """查询定时消息列表。"""
+    return ScheduledTaskListResponse(**task_service.ListScheduledTasksByAccountId(account_id=account_id, limit=limit, offset=offset))
+
+
+@router.get("/schedule/{task_id}", response_model=ScheduledTaskResponse)
+async def get_schedule_task(
+    task_id: int,
+    task_service: TaskService = Depends(get_task_service),
+) -> ScheduledTaskResponse:
+    """获取单个定时消息。"""
+    try:
+        return ScheduledTaskResponse(**task_service.GetScheduledTaskById(task_id=task_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/schedule/{task_id}", response_model=ScheduledTaskResponse)
+async def update_schedule_task(
+    task_id: int,
+    payload: UpdateScheduledTaskRequest,
+    task_service: TaskService = Depends(get_task_service),
+) -> ScheduledTaskResponse:
+    """修改定时消息。"""
+    try:
+        result = task_service.UpdateScheduledTask(task_id=task_id, payload=payload.model_dump())
+        return ScheduledTaskResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.patch("/schedule/{task_id}/active", response_model=ScheduledTaskResponse)
+async def update_schedule_task_active(
+    task_id: int,
+    payload: UpdateTaskActiveRequest,
+    task_service: TaskService = Depends(get_task_service),
+) -> ScheduledTaskResponse:
+    """启用或停用定时消息。"""
+    try:
+        result = task_service.SetScheduledTaskActive(task_id=task_id, is_active=payload.is_active)
+        return ScheduledTaskResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/schedule/{task_id}")
+async def delete_schedule_task(
+    task_id: int,
+    task_service: TaskService = Depends(get_task_service),
+) -> dict:
+    """软删除定时消息。"""
+    try:
+        return task_service.SoftDeleteScheduledTask(task_id=task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/rule")

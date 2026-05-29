@@ -6,7 +6,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import health, accounts, tasks, messages, users, service_status
+from app.api.routes import auto_reply_rules, files, health, accounts, tasks, messages, users, service_status
 
 
 def build_api_router() -> APIRouter:
@@ -22,5 +22,7 @@ def build_api_router() -> APIRouter:
     router.include_router(accounts.router)
     router.include_router(tasks.router)
     router.include_router(messages.router)
+    router.include_router(auto_reply_rules.router)
+    router.include_router(files.router)
     router.include_router(service_status.router)
     return router

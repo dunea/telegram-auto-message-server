@@ -6,7 +6,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_telegram_service
-from app.schema.account import AccountOnlineRequest, CreateAccountRequest
+from app.schema.account import (
+    AccountOnlineRequest,
+    AccountStatusResponse,
+    CreateAccountRequest,
+    CreateAccountWithSessionRequest,
+    LoginStepResponse,
+    RequestPhoneLoginCodeRequest,
+    UpdateAccountActiveRequest,
+    VerifyPhoneCodeRequest,
+    VerifyTwoFactorPasswordRequest,
+)
 from app.service.telegram_service import TelegramService
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -40,12 +50,103 @@ async def create_telegram_account(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/login/phone/request-code", response_model=LoginStepResponse)
+async def request_phone_login_code(
+    payload: RequestPhoneLoginCodeRequest,
+    telegram_service: TelegramService = Depends(get_telegram_service),
+) -> LoginStepResponse:
+    """通过手机号请求验证码。"""
+    try:
+        result = await telegram_service.RequestPhoneLoginCode(
+            phone_number=payload.phone_number,
+            proxy_id=payload.proxy_id,
+        )
+        return LoginStepResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/{account_id}/login/phone/verify-code", response_model=LoginStepResponse)
+async def verify_phone_login_code(
+    account_id: int,
+    payload: VerifyPhoneCodeRequest,
+    telegram_service: TelegramService = Depends(get_telegram_service),
+) -> LoginStepResponse:
+    """提交验证码并推进登录状态。"""
+    try:
+        result = await telegram_service.VerifyPhoneLoginCode(
+            account_id=account_id,
+            phone_code_hash=payload.phone_code_hash,
+            code=payload.code,
+        )
+        return LoginStepResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{account_id}/login/phone/verify-password", response_model=LoginStepResponse)
+async def verify_two_factor_password(
+    account_id: int,
+    payload: VerifyTwoFactorPasswordRequest,
+    telegram_service: TelegramService = Depends(get_telegram_service),
+) -> LoginStepResponse:
+    """提交二级密码完成登录。"""
+    try:
+        result = await telegram_service.VerifyTwoFactorPassword(account_id=account_id, password=payload.password)
+        return LoginStepResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/login/session", response_model=LoginStepResponse)
+async def create_account_with_session_login(
+    payload: CreateAccountWithSessionRequest,
+    telegram_service: TelegramService = Depends(get_telegram_service),
+) -> LoginStepResponse:
+    """通过 session 串登录并托管账号。"""
+    try:
+        result = await telegram_service.CreateAccountWithSessionLogin(
+            phone_number=payload.phone_number,
+            session_string=payload.session_string,
+            proxy_id=payload.proxy_id,
+        )
+        return LoginStepResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("")
 async def list_telegram_accounts(
     telegram_service: TelegramService = Depends(get_telegram_service),
 ) -> list[dict]:
     """列出当前服务已托管的 Telegram 账户。"""
     return telegram_service.ListManagedAccounts()
+
+
+@router.patch("/{account_id}/active", response_model=AccountStatusResponse)
+async def update_account_active(
+    account_id: int,
+    payload: UpdateAccountActiveRequest,
+    telegram_service: TelegramService = Depends(get_telegram_service),
+) -> AccountStatusResponse:
+    """启用或停用账号。"""
+    try:
+        result = telegram_service.SetAccountActive(account_id=account_id, is_active=payload.is_active)
+        return AccountStatusResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/{account_id}")
+async def soft_delete_account(
+    account_id: int,
+    telegram_service: TelegramService = Depends(get_telegram_service),
+) -> dict:
+    """软删除账号。"""
+    try:
+        return telegram_service.SoftDeleteAccount(account_id=account_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/{account_id}/online")

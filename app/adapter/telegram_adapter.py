@@ -181,6 +181,64 @@ class TelegramAdapter:
             self._emit_cache_stats_if_needed()
             raise
 
+    async def RequestLoginCode(self, account_id: int, phone_number: str, session_string: str) -> str:
+        """请求 Telegram 登录验证码，返回 phone_code_hash。"""
+        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        sent = await self._call_with_timeout(client.send_code_request(phone_number=phone_number))
+        phone_code_hash = str(getattr(sent, "phone_code_hash", "") or "")
+        if not phone_code_hash:
+            raise ValueError("验证码请求失败，未返回 phone_code_hash")
+        return phone_code_hash
+
+    async def SignInWithCode(
+        self,
+        account_id: int,
+        session_string: str,
+        phone_number: str,
+        phone_code_hash: str,
+        code: str,
+    ) -> tuple[bool, bool]:
+        """使用验证码登录。返回 (是否已完成登录, 是否需要二级密码)。"""
+        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        errors_module = importlib.import_module("telethon.errors")
+        session_password_needed_error = getattr(errors_module, "SessionPasswordNeededError")
+        try:
+            await self._call_with_timeout(
+                client.sign_in(phone=phone_number, code=code, phone_code_hash=phone_code_hash)
+            )
+            self._mark_client_used(account_id)
+            return True, False
+        except session_password_needed_error:
+            return False, True
+
+    async def SignInWithPassword(self, account_id: int, session_string: str, password: str) -> bool:
+        """使用二级密码完成登录。"""
+        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        await self._call_with_timeout(client.sign_in(password=password))
+        self._mark_client_used(account_id)
+        return True
+
+    async def ExportSessionString(self, account_id: int, session_string: str) -> str:
+        """导出当前客户端会话串。"""
+        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        exported = client.session.save()
+        return str(exported or "")
+
+    async def GetSelfProfile(self, account_id: int, session_string: str) -> dict[str, Any]:
+        """获取当前授权账号的基础信息。"""
+        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        me = await self._call_with_timeout(client.get_me())
+        if me is None:
+            return {"telegram_user_id": None, "display_name": None}
+        full_name = " ".join(
+            part for part in [str(getattr(me, "first_name", "") or "").strip(), str(getattr(me, "last_name", "") or "").strip()] if part
+        ).strip()
+        display_name = full_name or str(getattr(me, "username", "") or "").strip() or None
+        return {
+            "telegram_user_id": int(getattr(me, "id", 0) or 0) or None,
+            "display_name": display_name,
+        }
+
     async def ListDialogs(self, account_id: int, session_string: str, limit: int) -> list[dict[str, Any]]:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
         dialogs = await self._call_with_timeout(client.get_dialogs(limit=limit))

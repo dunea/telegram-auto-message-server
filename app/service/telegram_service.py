@@ -141,7 +141,7 @@ class TelegramService:
 
     def ListManagedAccounts(self) -> list[dict[str, Any]]:
         """获取托管账号列表。"""
-        accounts = self._account_repository.FindAllByIsActive(True)
+        accounts = self._account_repository.FindAll()
         return [
             {
                 "account_id": int(account.id),
@@ -153,6 +153,148 @@ class TelegramService:
             }
             for account in accounts
         ]
+
+    async def RequestPhoneLoginCode(self, phone_number: str, proxy_id: int | None = None) -> dict[str, Any]:
+        """通过手机号请求验证码；若账号不存在则自动创建。"""
+        account = self._account_repository.FindByPhoneNumber(phone_number)
+        if account is None:
+            created = self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string="")
+            account = self._get_account_or_raise(int(created["account_id"]))
+        elif proxy_id is not None:
+            account.proxy_id = proxy_id
+            self._session.flush()
+
+        phone_code_hash = await self._telegram_adapter.RequestLoginCode(
+            account_id=int(account.id),
+            phone_number=account.phone_number,
+            session_string=account.session_string or "",
+        )
+        self._session.commit()
+        return {
+            "account_id": int(account.id),
+            "phone_number": account.phone_number,
+            "is_active": bool(account.is_active),
+            "is_online": bool(account.is_online),
+            "next_step": "verify_code",
+            "message": "验证码已发送，请提交验证码。",
+            "phone_code_hash": phone_code_hash,
+        }
+
+    async def VerifyPhoneLoginCode(self, account_id: int, phone_code_hash: str, code: str) -> dict[str, Any]:
+        """提交验证码并尝试登录；若需要二级密码则返回下一步。"""
+        account = self._get_account_or_raise(account_id)
+        signed_in, need_password = await self._telegram_adapter.SignInWithCode(
+            account_id=int(account.id),
+            session_string=account.session_string or "",
+            phone_number=account.phone_number,
+            phone_code_hash=phone_code_hash,
+            code=code,
+        )
+
+        if need_password:
+            return {
+                "account_id": int(account.id),
+                "phone_number": account.phone_number,
+                "is_active": bool(account.is_active),
+                "is_online": bool(account.is_online),
+                "next_step": "verify_password",
+                "message": "账号开启了二级密码，请继续提交二级密码。",
+            }
+
+        if signed_in:
+            await self._refresh_account_online_profile(account)
+
+        return {
+            "account_id": int(account.id),
+            "phone_number": account.phone_number,
+            "is_active": bool(account.is_active),
+            "is_online": bool(account.is_online),
+            "next_step": "done",
+            "message": "账号登录成功。",
+        }
+
+    async def VerifyTwoFactorPassword(self, account_id: int, password: str) -> dict[str, Any]:
+        """提交二级密码完成登录。"""
+        account = self._get_account_or_raise(account_id)
+        await self._telegram_adapter.SignInWithPassword(
+            account_id=int(account.id),
+            session_string=account.session_string or "",
+            password=password,
+        )
+        await self._refresh_account_online_profile(account)
+        return {
+            "account_id": int(account.id),
+            "phone_number": account.phone_number,
+            "is_active": bool(account.is_active),
+            "is_online": bool(account.is_online),
+            "next_step": "done",
+            "message": "二级密码验证成功，账号已上线。",
+        }
+
+    async def CreateAccountWithSessionLogin(self, phone_number: str, session_string: str, proxy_id: int | None = None) -> dict[str, Any]:
+        """通过 session 串直接接管账号并完成鉴权。"""
+        account = self._account_repository.FindByPhoneNumber(phone_number)
+        if account is None:
+            created = self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string=session_string)
+            account = self._get_account_or_raise(int(created["account_id"]))
+        else:
+            account.session_string = session_string
+            if proxy_id is not None:
+                account.proxy_id = proxy_id
+            account.is_active = True
+            self._session.flush()
+
+        is_authorized = await self._telegram_adapter.IsAuthorized(
+            account_id=int(account.id),
+            session_string=account.session_string or "",
+        )
+        if not is_authorized:
+            raise ValueError("session 无效，账号未完成授权")
+
+        await self._refresh_account_online_profile(account)
+        return {
+            "account_id": int(account.id),
+            "phone_number": account.phone_number,
+            "is_active": bool(account.is_active),
+            "is_online": bool(account.is_online),
+            "next_step": "done",
+            "message": "账号通过 session 登录成功。",
+        }
+
+    def SetAccountActive(self, account_id: int, is_active: bool) -> dict[str, Any]:
+        """启停账号（软删除基础能力）。"""
+        updated = self._account_repository.UpdateIsActiveById(account_id=account_id, is_active=is_active)
+        if not updated:
+            raise ValueError("账号不存在")
+        self._session.commit()
+        account = self._get_account_or_raise(account_id)
+        return {
+            "account_id": int(account.id),
+            "phone_number": account.phone_number,
+            "is_active": bool(account.is_active),
+            "is_online": bool(account.is_online),
+        }
+
+    def SoftDeleteAccount(self, account_id: int) -> dict[str, Any]:
+        """软删除账号：仅禁用，不清除历史数据。"""
+        result = self.SetAccountActive(account_id=account_id, is_active=False)
+        return {**result, "deleted": True}
+
+    async def _refresh_account_online_profile(self, account: TelegramAccount) -> None:
+        exported_session = await self._telegram_adapter.ExportSessionString(
+            account_id=int(account.id),
+            session_string=account.session_string or "",
+        )
+        profile = await self._telegram_adapter.GetSelfProfile(
+            account_id=int(account.id),
+            session_string=exported_session,
+        )
+        account.session_string = exported_session
+        account.telegram_user_id = profile.get("telegram_user_id")
+        account.display_name = profile.get("display_name")
+        account.is_online = True
+        account.is_active = True
+        self._session.commit()
 
     def UpdateAccountSessionString(self, account_id: int, session_string: str) -> None:
         account = self._get_account_or_raise(account_id)

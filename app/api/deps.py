@@ -17,9 +17,11 @@ from fastapi import Depends
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.adapter.mysql_adapter import build_session_factory
+from app.adapter.s3_adapter import S3Adapter
 from app.adapter.telegram_adapter import TelegramAdapter
 from app.config import Settings, get_settings
 from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
+from app.repository.file_repository import SqlAlchemyFileRecordRepository
 from app.repository.message_repository import (
     SqlAlchemyMessageContentMediaRepository,
     SqlAlchemyMessageContentRepository,
@@ -28,10 +30,13 @@ from app.repository.message_repository import (
     SqlAlchemyTelegramMessageSendAttemptRepository,
 )
 from app.repository.task_repository import (
+    SqlAlchemyAutoReplyRuleRepository,
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
     SqlAlchemyTaskExecutionLogRepository,
 )
+from app.service.auto_reply_service import AutoReplyService
+from app.service.file_service import FileService
 from app.service.task_service import TaskService
 from app.service.telegram_service import TelegramService
 from app.worker.task_scheduler import TaskScheduler
@@ -70,6 +75,13 @@ def get_task_scheduler() -> TaskScheduler:
     - 便于统一观测任务状态。
     """
     return TaskScheduler()
+
+
+@lru_cache(maxsize=1)
+def get_s3_adapter() -> S3Adapter:
+    """获取并缓存 S3 适配器实例。"""
+    settings = get_settings()
+    return S3Adapter(settings=settings)
 
 
 def get_db_session() -> Generator[Session, None, None]:
@@ -144,4 +156,25 @@ def get_task_service(db_session: Session = Depends(get_db_session)) -> TaskServi
         scheduled_task_repository=scheduled_task_repository,
         rule_task_repository=rule_task_repository,
         task_execution_log_repository=task_execution_log_repository,
+    )
+
+
+def get_auto_reply_service(db_session: Session = Depends(get_db_session)) -> AutoReplyService:
+    """构建 AutoReplyService 依赖。"""
+    auto_reply_rule_repository = SqlAlchemyAutoReplyRuleRepository(db_session)
+    return AutoReplyService(
+        session=db_session,
+        auto_reply_rule_repository=auto_reply_rule_repository,
+    )
+
+
+def get_file_service(db_session: Session = Depends(get_db_session)) -> FileService:
+    """构建 FileService 依赖。"""
+    settings = get_settings()
+    file_record_repository = SqlAlchemyFileRecordRepository(db_session)
+    return FileService(
+        settings=settings,
+        session=db_session,
+        file_record_repository=file_record_repository,
+        s3_adapter=get_s3_adapter(),
     )

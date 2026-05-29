@@ -230,6 +230,45 @@ POOL_SHARD_GUARD_ENABLED=true
 
    python -m pytest -q
 
+## API 接口总览（/api/v1）
+
+### 1) 账号管理
+
+- `POST /accounts/login/phone/request-code`：手机号请求验证码。
+- `POST /accounts/{account_id}/login/phone/verify-code`：提交验证码。
+- `POST /accounts/{account_id}/login/phone/verify-password`：提交二级密码。
+- `POST /accounts/login/session`：通过 session 登录账号。
+- `PATCH /accounts/{account_id}/active`：启用/停用账号。
+- `DELETE /accounts/{account_id}`：软删除账号。
+
+### 2) 定时消息
+
+- `POST /tasks/schedule`：新增定时消息。
+- `PUT /tasks/schedule/{task_id}`：修改定时消息。
+- `DELETE /tasks/schedule/{task_id}`：删除（软删除）定时消息。
+- `PATCH /tasks/schedule/{task_id}/active`：启用/停用定时消息。
+- `GET /tasks/schedule`：获取定时消息列表（支持 `account_id`、`limit`、`offset`）。
+
+### 3) 回复消息（自动回复规则）
+
+- `POST /auto-reply-rules`：新增回复消息规则。
+- `PUT /auto-reply-rules/{rule_id}`：修改回复消息规则。
+- `DELETE /auto-reply-rules/{rule_id}`：删除（软删除）回复消息规则。
+- `PATCH /auto-reply-rules/{rule_id}/active`：启用/停用回复消息规则。
+- `GET /auto-reply-rules`：获取回复消息列表（支持 `account_id`、`limit`、`offset`）。
+
+### 4) 文件管理
+
+- `POST /files/upload`：上传文件（`multipart/form-data`）。
+- `GET /files/{file_id}/download`：下载文件。
+- `DELETE /files/{file_id}`：删除（软删除）文件。
+- `GET /files`：文件列表（支持 `status`、`limit`、`offset`）。
+
+说明：
+
+- 当前删除语义统一为软删除，保留历史记录以便审计与排障。
+- 本项目不自动执行数据库迁移；涉及表结构变更时请人工执行 Alembic 迁移流程。
+
 ## 数据库迁移约束
 
 - 数据库为 MySQL。
@@ -268,3 +307,7 @@ services:
 1 页值班速查请见 docs/ONCALL-CHEATSHEET.zh-CN.md。
 
 夜班极简速查请见 docs/ONCALL-NIGHT-SHORT.zh-CN.md。
+
+接口请求/响应示例请见 docs/API-EXAMPLES.zh-CN.md。
+
+curl 快速联调清单请见 docs/API-EXAMPLES.zh-CN.md 第 6 节。

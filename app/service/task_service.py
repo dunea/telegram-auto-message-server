@@ -304,6 +304,82 @@ class TaskService:
             "assigned_to_current_pool": assigned_to_current_pool,
         }
 
+    def _to_scheduled_task_dict(self, task: ScheduledMessageTask) -> dict[str, Any]:
+        return {
+            "task_id": int(task.id),
+            "account_id": int(task.account_id),
+            "cron_expr": task.cron_expr,
+            "target_identifier": task.target_identifier,
+            "message_template": task.message_template or "",
+            "message_content_id": task.message_content_id,
+            "is_active": bool(task.is_active),
+        }
+
+    def GetScheduledTaskById(self, task_id: int) -> dict[str, Any]:
+        task = self._scheduled_task_repository.FindById(task_id)
+        if task is None:
+            raise ValueError("定时消息不存在")
+        return self._to_scheduled_task_dict(task)
+
+    def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int) -> dict[str, Any]:
+        items = self._scheduled_task_repository.FindAllByAccountIdOrderByIdDesc(
+            account_id=account_id,
+            limit=limit,
+            offset=offset,
+        )
+        total = self._scheduled_task_repository.CountByAccountId(account_id=account_id)
+        return {
+            "total": int(total),
+            "items": [self._to_scheduled_task_dict(item) for item in items],
+        }
+
+    def UpdateScheduledTask(self, task_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        task = self._scheduled_task_repository.FindById(task_id)
+        if task is None:
+            raise ValueError("定时消息不存在")
+
+        message_content = self._build_message_content(int(task.account_id), payload)
+        task.cron_expr = str(payload["cron_expr"])
+        task.target_identifier = str(payload["target_identifier"])
+        task.message_template = str(payload.get("message_template") or "")
+        task.message_content_id = int(message_content.id)
+        self._session.commit()
+
+        if task.is_active and self._belongs_to_current_shard(int(task.id)):
+            self._scheduler.AddOrReplaceCronJob(
+                job_id=self._build_scheduled_job_id(int(task.id)),
+                cron_expr=task.cron_expr,
+                callback=self.ExecuteScheduledTaskById,
+                args=[int(task.id)],
+            )
+
+        return self._to_scheduled_task_dict(task)
+
+    def SetScheduledTaskActive(self, task_id: int, is_active: bool) -> dict[str, Any]:
+        task = self._scheduled_task_repository.FindById(task_id)
+        if task is None:
+            raise ValueError("定时消息不存在")
+
+        task.is_active = is_active
+        self._session.commit()
+
+        job_id = self._build_scheduled_job_id(int(task.id))
+        if is_active and self._belongs_to_current_shard(int(task.id)):
+            self._scheduler.AddOrReplaceCronJob(
+                job_id=job_id,
+                cron_expr=task.cron_expr,
+                callback=self.ExecuteScheduledTaskById,
+                args=[int(task.id)],
+            )
+        else:
+            self._scheduler.RemoveJob(job_id)
+
+        return self._to_scheduled_task_dict(task)
+
+    def SoftDeleteScheduledTask(self, task_id: int) -> dict[str, Any]:
+        task_status = self.SetScheduledTaskActive(task_id=task_id, is_active=False)
+        return {**task_status, "deleted": True}
+
     def ReloadActiveTasksToScheduler(self) -> None:
         """应用启动后重载激活任务。"""
         scheduled_tasks = self._scheduled_task_repository.FindAllByIsActive(True)

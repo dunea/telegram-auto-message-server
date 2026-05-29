@@ -26,6 +26,18 @@ class TelegramAccountRepository(ABC):
     def FindAllByIsActive(self, is_active: bool) -> list[TelegramAccount]:
         raise NotImplementedError
 
+    @abstractmethod
+    def FindAll(self) -> list[TelegramAccount]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def UpdateIsActiveById(self, account_id: int, is_active: bool) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def UpdateSessionStringById(self, account_id: int, session_string: str) -> bool:
+        raise NotImplementedError
+
 
 class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], TelegramAccountRepository):
     def __init__(self, session: Session) -> None:
@@ -46,3 +58,25 @@ class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], Teleg
     def FindAllByIsActive(self, is_active: bool) -> list[TelegramAccount]:
         stmt = select(TelegramAccount).where(TelegramAccount.is_active == is_active)
         return list(self._session.scalars(stmt).all())
+
+    def FindAll(self) -> list[TelegramAccount]:
+        stmt = select(TelegramAccount).order_by(TelegramAccount.id.desc())
+        return list(self._session.scalars(stmt).all())
+
+    def UpdateIsActiveById(self, account_id: int, is_active: bool) -> bool:
+        account = self.FindById(account_id)
+        if account is None:
+            return False
+        account.is_active = is_active
+        if not is_active:
+            account.is_online = False
+        self._session.flush()
+        return True
+
+    def UpdateSessionStringById(self, account_id: int, session_string: str) -> bool:
+        account = self.FindById(account_id)
+        if account is None:
+            return False
+        account.session_string = session_string
+        self._session.flush()
+        return True
