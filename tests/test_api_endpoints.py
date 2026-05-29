@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import (
     get_auto_reply_service,
+    get_current_user,
     get_file_service,
     get_task_service,
     get_telegram_service,
@@ -185,6 +186,7 @@ def _build_test_client() -> TestClient:
     app.dependency_overrides[get_task_service] = lambda: FakeTaskService()
     app.dependency_overrides[get_auto_reply_service] = lambda: FakeAutoReplyService()
     app.dependency_overrides[get_file_service] = lambda: FakeFileService()
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": 1}
     return TestClient(app)
 
 

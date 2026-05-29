@@ -3,11 +3,11 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
-from app.api.deps import get_file_service
+from app.api.deps import get_current_user, get_file_service
 from app.schema.file import FileItemResponse, FileListResponse, UploadFileResponse
 from app.service.file_service import FileService
 
-router = APIRouter(prefix="/files", tags=["files"])
+router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/upload", response_model=UploadFileResponse)

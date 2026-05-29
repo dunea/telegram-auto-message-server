@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_auto_reply_service
+from app.api.deps import get_auto_reply_service, get_current_user
 from app.schema.auto_reply_rule import (
     AutoReplyRuleListResponse,
     AutoReplyRuleResponse,
@@ -12,7 +12,7 @@ from app.schema.auto_reply_rule import (
 )
 from app.service.auto_reply_service import AutoReplyService
 
-router = APIRouter(prefix="/auto-reply-rules", tags=["auto-reply-rules"])
+router = APIRouter(prefix="/auto-reply-rules", tags=["auto-reply-rules"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("", response_model=AutoReplyRuleResponse)

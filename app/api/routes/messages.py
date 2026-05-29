@@ -5,11 +5,11 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_telegram_service
+from app.api.deps import get_current_user, get_telegram_service
 from app.schema.message import SendMessageRequest, SendMessageResult
 from app.service.telegram_service import TelegramService
 
-router = APIRouter(prefix="/messages", tags=["messages"])
+router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/records")

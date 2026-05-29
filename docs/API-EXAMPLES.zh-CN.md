@@ -2,6 +2,79 @@
 
 本文档提供前端联调常用请求示例与典型响应。
 
+## 0. 用户注册登录与 Bearer 用法
+
+### 0.1 用户注册
+
+请求：
+
+```http
+POST /api/v1/users/register
+Content-Type: application/json
+
+{
+  "email": "demo@example.com",
+  "password": "Password123"
+}
+```
+
+### 0.2 用户登录
+
+请求：
+
+```http
+POST /api/v1/users/login
+Content-Type: application/json
+
+{
+  "email": "demo@example.com",
+  "password": "Password123"
+}
+```
+
+响应：
+
+```json
+{
+  "access_token": "<jwt-token>",
+  "refresh_token": "<refresh-jwt-token>",
+  "token_type": "bearer",
+  "expires_in_seconds": 3600
+}
+```
+
+### 0.3 刷新令牌
+
+请求：
+
+```http
+POST /api/v1/users/refresh-token
+Content-Type: application/json
+
+{
+  "refresh_token": "<refresh-jwt-token>"
+}
+```
+
+响应：
+
+```json
+{
+  "access_token": "<new-jwt-token>",
+  "refresh_token": "<new-refresh-jwt-token>",
+  "token_type": "bearer",
+  "expires_in_seconds": 3600
+}
+```
+
+### 0.4 访问受保护接口
+
+请求头示例：
+
+```http
+Authorization: Bearer <jwt-token>
+```
+
 ## 1. 账号登录与管理
 
 ### 1.1 手机号请求验证码

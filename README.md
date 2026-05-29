@@ -232,6 +232,19 @@ POOL_SHARD_GUARD_ENABLED=true
 
 ## API 接口总览（/api/v1）
 
+### 鉴权说明
+
+- 除 `POST /users/register`、`POST /users/login` 与 `GET /health` 外，其余业务接口默认需要 Bearer 令牌。
+- 登录成功后请在请求头中携带：`Authorization: Bearer <access_token>`。
+- refresh token 仅用于 `POST /users/refresh-token`，不能直接访问业务接口。
+
+### 0) 用户注册与登录
+
+- `POST /users/register`：用户注册（email + password）。
+- `POST /users/login`：用户登录并获取 access token + refresh token。
+- `POST /users/refresh-token`：使用 refresh token 刷新并轮换 token 对。
+- `GET /users/me`：获取当前登录用户信息（需要 Bearer token）。
+
 ### 1) 账号管理
 
 - `POST /accounts/login/phone/request-code`：手机号请求验证码。

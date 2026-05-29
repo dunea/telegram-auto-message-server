@@ -13,7 +13,8 @@
 from collections.abc import Generator
 from functools import lru_cache
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.adapter.mysql_adapter import build_session_factory
@@ -35,11 +36,16 @@ from app.repository.task_repository import (
     SqlAlchemyScheduledMessageTaskRepository,
     SqlAlchemyTaskExecutionLogRepository,
 )
+from app.repository.user_repository import SqlAlchemyUserRepository
+from app.service.auth_service import AuthService
 from app.service.auto_reply_service import AutoReplyService
 from app.service.file_service import FileService
 from app.service.task_service import TaskService
 from app.service.telegram_service import TelegramService
 from app.worker.task_scheduler import TaskScheduler
+
+
+_http_bearer = HTTPBearer(auto_error=False)
 
 
 @lru_cache(maxsize=1)
@@ -178,3 +184,30 @@ def get_file_service(db_session: Session = Depends(get_db_session)) -> FileServi
         file_record_repository=file_record_repository,
         s3_adapter=get_s3_adapter(),
     )
+
+
+def get_auth_service(db_session: Session = Depends(get_db_session)) -> AuthService:
+    """构建 AuthService 依赖。"""
+    settings = get_settings()
+    user_repository = SqlAlchemyUserRepository(db_session)
+    return AuthService(
+        settings=settings,
+        session=db_session,
+        user_repository=user_repository,
+    )
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """解析 Bearer token 并返回当前有效用户。"""
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="缺少访问令牌")
+
+    try:
+        return auth_service.GetCurrentUserByToken(credentials.credentials)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc

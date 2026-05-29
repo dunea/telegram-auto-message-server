@@ -6,7 +6,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Query
 
-from app.api.deps import get_task_service
+from app.api.deps import get_current_user, get_task_service
 from app.schema.task import (
     CreateRuleTaskRequest,
     CreateScheduledTaskRequest,
@@ -17,7 +17,7 @@ from app.schema.task import (
 )
 from app.service.task_service import TaskService
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/schedule")

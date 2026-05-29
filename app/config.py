@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     s3_bucket_name: str = ""
     s3_region_name: str = ""
 
+    jwt_secret_key: str = "change-this-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = Field(default=60, ge=1)
+    jwt_refresh_token_expire_days: int = Field(default=30, ge=1)
+
     local_temp_dir: str = str(DEFAULT_LOCAL_TEMP_DIR)
     local_temp_max_bytes: int = 5 * 1024 * 1024 * 1024
     local_temp_retention_hours: int = 24 * 7

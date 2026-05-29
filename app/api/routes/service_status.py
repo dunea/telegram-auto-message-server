@@ -5,12 +5,12 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.api.deps import get_task_scheduler
+from app.api.deps import get_current_user, get_task_scheduler
 from app.config import get_settings
 
-router = APIRouter(prefix="/service", tags=["service"])
+router = APIRouter(prefix="/service", tags=["service"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/status")
