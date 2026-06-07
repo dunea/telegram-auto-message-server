@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import random
 from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -227,6 +228,9 @@ class TaskService:
             target_identifier=str(payload["target_identifier"]),
             message_template=str(payload["message_template"]),
             is_active=True,
+            scope_mode=str(payload.get("scope_mode") or "all"),
+            conversation_ids=payload.get("conversation_ids"),
+            message_ids=payload.get("message_ids"),
         )
         self._scheduled_task_repository.Save(task)
         self._session.commit()
@@ -313,6 +317,9 @@ class TaskService:
             "message_template": task.message_template or "",
             "message_content_id": task.message_content_id,
             "is_active": bool(task.is_active),
+            "scope_mode": task.scope_mode,
+            "conversation_ids": task.conversation_ids,
+            "message_ids": task.message_ids,
         }
 
     def GetScheduledTaskById(self, task_id: int) -> dict[str, Any]:
@@ -343,6 +350,12 @@ class TaskService:
         task.target_identifier = str(payload["target_identifier"])
         task.message_template = str(payload.get("message_template") or "")
         task.message_content_id = int(message_content.id)
+        if "scope_mode" in payload:
+            task.scope_mode = str(payload["scope_mode"])
+        if "conversation_ids" in payload:
+            task.conversation_ids = payload.get("conversation_ids")
+        if "message_ids" in payload:
+            task.message_ids = payload.get("message_ids")
         self._session.commit()
 
         if task.is_active and self._belongs_to_current_shard(int(task.id)):
@@ -456,22 +469,32 @@ class TaskService:
             if task is None or not task.is_active:
                 return
 
+            # 如果配置了 message_ids，随机选取一条
+            message_content_id = task.message_content_id
+            if task.message_ids and isinstance(task.message_ids, list) and len(task.message_ids) > 0:
+                message_content_id = random.choice(task.message_ids)
+
+            # 如果配置了 scope_mode="specific"，确定目标
+            target_identifier = task.target_identifier
+            if task.scope_mode == "specific" and task.conversation_ids and isinstance(task.conversation_ids, list):
+                target_identifier = str(random.choice(task.conversation_ids))
+
             execution_log = self._create_task_execution_log(
                 task_execution_log_repository=task_execution_log_repository,
                 task_type="scheduled",
                 task_id=int(task.id),
                 account_id=int(task.account_id),
-                message_content_id=task.message_content_id,
-                target_identifier=task.target_identifier,
+                message_content_id=message_content_id,
+                target_identifier=target_identifier,
             )
             session.commit()
 
             send_result = await telegram_service.SendMessage(
                 account_id=int(task.account_id),
-                target_identifier=task.target_identifier,
+                target_identifier=target_identifier,
                 content=task.message_template,
                 content_type=(task.message_content_id and MessageContentType.TEXT) or MessageContentType.TEXT,
-                message_content_id=task.message_content_id,
+                message_content_id=message_content_id,
                 media_items=None,
                 source_type=MessageSourceType.SCHEDULED,
                 task_execution_log_id=int(execution_log.id),
