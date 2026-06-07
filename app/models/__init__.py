@@ -16,6 +16,8 @@ from app.models.enums import (
 	TelegramPeerType,
 )
 from app.models.file import FileRecord
+from app.models.reply_message import ReplyMessage
+from app.models.reply_message_media import ReplyMessageMedia
 from app.models.message import (
 	MessageContent,
 	MessageContentMedia,

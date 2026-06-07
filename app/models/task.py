@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, DateTime, JSON, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
 from app.models.enums import TaskExecutionStatus
@@ -92,6 +92,10 @@ class AutoReplyRule(Base, TimestampMixin):
     )
     conversation_ids: Mapped[list | None] = mapped_column(
         JSON, nullable=True, comment="指定会话ID列表(JSON数组)"
+    )
+
+    reply_messages: Mapped[list["ReplyMessage"]] = relationship(
+        "ReplyMessage", back_populates="rule", cascade="all, delete-orphan"
     )
 
 
