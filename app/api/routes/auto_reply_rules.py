@@ -27,6 +27,10 @@ async def create_auto_reply_rule(
             account_id=payload.account_id,
             trigger_keyword=payload.trigger_keyword,
             reply_content=payload.reply_content,
+            trigger_mode=payload.trigger_mode,
+            keywords=payload.keywords,
+            scope_mode=payload.scope_mode,
+            conversation_ids=payload.conversation_ids,
         )
         return AutoReplyRuleResponse(**result)
 
@@ -65,6 +69,10 @@ async def update_auto_reply_rule(
             rule_id=rule_id,
             trigger_keyword=payload.trigger_keyword,
             reply_content=payload.reply_content,
+            trigger_mode=payload.trigger_mode,
+            keywords=payload.keywords,
+            scope_mode=payload.scope_mode,
+            conversation_ids=payload.conversation_ids,
         )
         return AutoReplyRuleResponse(**result)
 
