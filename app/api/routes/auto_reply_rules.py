@@ -11,6 +11,7 @@ from app.schema.auto_reply_rule import (
     UpdateAutoReplyRuleActiveRequest,
     UpdateAutoReplyRuleRequest,
 )
+from app.schema.reply_message import ReplyMessageCreate
 from app.service.auto_reply_service import AutoReplyService
 
 router = APIRouter(prefix="/auto-reply-rules", tags=["auto-reply-rules"], dependencies=[Depends(get_current_user)])
@@ -31,6 +32,7 @@ async def create_auto_reply_rule(
             keywords=payload.keywords,
             scope_mode=payload.scope_mode,
             conversation_ids=payload.conversation_ids,
+            reply_messages=[ReplyMessageCreate(**rm) if isinstance(rm, dict) else rm for rm in (payload.reply_messages or [])],
         )
         return AutoReplyRuleResponse(**result)
 
@@ -73,6 +75,7 @@ async def update_auto_reply_rule(
             keywords=payload.keywords,
             scope_mode=payload.scope_mode,
             conversation_ids=payload.conversation_ids,
+            reply_messages=[ReplyMessageCreate(**rm) if isinstance(rm, dict) else rm for rm in (payload.reply_messages or [])],
         )
         return AutoReplyRuleResponse(**result)
 

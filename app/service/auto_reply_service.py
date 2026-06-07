@@ -3,8 +3,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.reply_message import ReplyMessage
 from app.models.task import AutoReplyRule
+from app.repository.reply_message_repository import SqlAlchemyReplyMessageRepository
 from app.repository.task_repository import SqlAlchemyAutoReplyRuleRepository
+from app.schema.reply_message import ReplyMessageCreate
 
 
 class AutoReplyService:
@@ -26,6 +29,15 @@ class AutoReplyService:
             "keywords": rule.keywords,
             "scope_mode": rule.scope_mode,
             "conversation_ids": rule.conversation_ids,
+            "reply_messages": [
+                {
+                    "id": int(msg.id),
+                    "rule_id": int(msg.rule_id),
+                    "text": msg.text,
+                    "sort_order": msg.sort_order,
+                }
+                for msg in (rule.reply_messages or [])
+            ],
         }
 
     def CreateRule(
@@ -37,6 +49,7 @@ class AutoReplyService:
         keywords: list[str] | None = None,
         scope_mode: str = "all",
         conversation_ids: list[int] | None = None,
+        reply_messages: list[ReplyMessageCreate] | None = None,
     ) -> dict[str, Any]:
         rule = AutoReplyRule(
             account_id=account_id,
@@ -50,6 +63,15 @@ class AutoReplyService:
         )
         self._auto_reply_rule_repository.Save(rule)
         self._session.commit()
+        if reply_messages:
+            reply_repo = SqlAlchemyReplyMessageRepository(self._session)
+            for msg_data in reply_messages:
+                reply_repo.Save(ReplyMessage(
+                    rule_id=int(rule.id),
+                    text=msg_data.text,
+                    sort_order=msg_data.sort_order,
+                ))
+            self._session.commit()
         return self._to_rule_dict(rule)
 
     def GetRuleById(self, rule_id: int) -> dict[str, Any]:
@@ -67,6 +89,7 @@ class AutoReplyService:
         keywords: list[str] | None = None,
         scope_mode: str | None = None,
         conversation_ids: list[int] | None = None,
+        reply_messages: list[ReplyMessageCreate] | None = None,
     ) -> dict[str, Any]:
         kwargs = {}
         if trigger_keyword is not None:
@@ -85,6 +108,16 @@ class AutoReplyService:
         if rule is None:
             raise ValueError("回复消息不存在")
         self._session.commit()
+        if reply_messages is not None:
+            reply_repo = SqlAlchemyReplyMessageRepository(self._session)
+            reply_repo.DeleteAllByRuleId(rule_id)
+            for msg_data in reply_messages:
+                reply_repo.Save(ReplyMessage(
+                    rule_id=rule_id,
+                    text=msg_data.text,
+                    sort_order=msg_data.sort_order,
+                ))
+            self._session.commit()
         return self._to_rule_dict(rule)
 
     def SetRuleActive(self, rule_id: int, is_active: bool) -> dict[str, Any]:
