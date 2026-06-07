@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{% if task %}编辑{% else %}创建{% endif %}定时发送任务 - TG 自动消息服务{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Back Navigation -->
+    <div class="mb-4">
+        <a href="/web/scheduled" class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            返回列表
+        </a>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-6 py-5 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-lg leading-6 font-semibold text-gray-900">
+                {% if task %}修改定时发送任务{% else %}新增定时发送任务{% endif %}
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                创建或编辑通过 Cron 表达式触发的固定发送计划
+            </p>
+        </div>
+
+        <form action="{% if task %}/web/scheduled/{{ task.task_id }}/edit{% else %}/web/scheduled/new{% endif %}" method="POST" class="p-6 space-y-6">
+            <!-- 托管账号 -->
+            <div>
+                <label for="account_id" class="block text-sm font-medium text-gray-700">关联托管账号 <span class="text-red-500">*</span></label>
+                <select id="account_id" name="account_id" required 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm {% if task %}bg-gray-100{% endif %}"
+                        {% if task %}disabled{% endif %}>
+                    <option value="">-- 请选择账号 --</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}" {% if task and task.account_id|string == acc.id|string %}selected{% endif %}>
+                        {{ acc.display_name or acc.phone_number }} (ID: {{ acc.id }})
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if task %}
+                <!-- 编辑模式下由于 select 禁用，我们传递隐藏的 input 作为真正的表单传参 -->
+                <input type="hidden" name="account_id" value="{{ task.account_id }}">
+                {% endif %}
+            </div>
+
+            <!-- Cron 表达式及快捷选项 -->
+            <div>
+                <label for="cron_expr" class="block text-sm font-medium text-gray-700">Cron 表达式 <span class="text-red-500">*</span></label>
+                <input type="text" name="cron_expr" id="cron_expr" required
+                       value="{{ task.cron_expr if task else '' }}"
+                       placeholder="如: */5 * * * * "
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                
+                <!-- 快捷选项 -->
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="text-xs text-gray-500 self-center">快捷选项:</span>
+                    <button type="button" onclick="setCron('*/5 * * * *')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded transition">
+                        每5分钟 (*/5 * * * *)
+                    </button>
+                    <button type="button" onclick="setCron('0 * * * *')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded transition">
+                        每小时 (0 * * * *)
+                    </button>
+                    <button type="button" onclick="setCron('0 9 * * *')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded transition">
+                        每天上午9点 (0 9 * * *)
+                    </button>
+                    <button type="button" onclick="setCron('0 18 * * *')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded transition">
+                        每天下午6点 (0 18 * * *)
+                    </button>
+                </div>
+                <p class="mt-1.5 text-xs text-gray-400">标准 5 段或 6 段 Cron 表达式（分、时、日、月、周）。</p>
+            </div>
+
+            <!-- 目标会话标识 -->
+            <div>
+                <label for="target_identifier" class="block text-sm font-medium text-gray-700">默认目标会话标识 <span class="text-red-500">*</span></label>
+                <input type="text" name="target_identifier" id="target_identifier" required
+                       value="{{ task.target_identifier if task else '' }}"
+                       placeholder="用户名(如 @channel_name) 或 会话 ID(如 -10012345678)"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <p class="mt-1 text-xs text-gray-400">默认消息发送的目标群组、频道或私聊 ID/用户名。</p>
+            </div>
+
+            <!-- 范围选择 (全选 / 指定会话) -->
+            <div>
+                <label for="scope_mode" class="block text-sm font-medium text-gray-700">会话响应范围 <span class="text-red-500">*</span></label>
+                <select id="scope_mode" name="scope_mode" onchange="toggleScopeFields()" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <option value="all" {% if task and task.scope_mode == "all" %}selected{% endif %}>发送到默认目标会话</option>
+                    <option value="specific" {% if task and task.scope_mode == "specific" %}selected{% endif %}>轮询发送到指定会话列表</option>
+                </select>
+            </div>
+
+            <!-- 指定会话 ID -->
+            <div id="scope-fields-container" class="border border-orange-50 p-4 rounded bg-orange-50/30">
+                <label for="conversation_ids" class="block text-sm font-medium text-gray-700">指定会话 ID (以英文逗号 , 隔开) <span class="text-red-500">*</span></label>
+                <input type="text" name="conversation_ids" id="conversation_ids" 
+                       value="{{ conv_ids_str if task else '' }}"
+                       placeholder="比如: 123456789, -100234567890"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <p class="mt-1 text-xs text-gray-400">将在此列表内轮询/随机选择会话进行发送。群组 ID 通常以 -100 开头。</p>
+            </div>
+
+            <!-- 消息文本模板 -->
+            <div>
+                <label for="message_template" class="block text-sm font-medium text-gray-700">消息发送文本模板</label>
+                <textarea id="message_template" name="message_template" rows="4"
+                          placeholder="配置您要定时发送的文本消息..."
+                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ task.message_template if task else '' }}</textarea>
+            </div>
+
+            <!-- 图片或文件附件选择 -->
+            <div>
+                <label for="file_id" class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
+                <select id="file_id" name="file_id" 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <option value="">-- 无附件 --</option>
+                    {% for file in files %}
+                    <option value="{{ file.id }}" {% if selected_file_id|string == file.id|string %}selected{% endif %}>
+                        {{ file.local_path }} (ID: {{ file.id }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="mt-1 text-xs text-gray-400">选择一个已上传至服务器的图片、文件。支持与文本模板结合发送。</p>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <a href="/web/scheduled" class="inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition">
+                    取消
+                </a>
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition">
+                    保存定时发送任务
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// 设置 Cron 快捷输入
+function setCron(val) {
+    document.getElementById('cron_expr').value = val;
+}
+
+// 动态切换会话范围字段
+function toggleScopeFields() {
+    const scopeMode = document.getElementById('scope_mode').value;
+    const container = document.getElementById('scope-fields-container');
+    const input = document.getElementById('conversation_ids');
+    
+    if (scopeMode === 'specific') {
+        container.style.display = 'block';
+        input.required = true;
+    } else {
+        container.style.display = 'none';
+        input.required = false;
+    }
+}
+
+// 初始页面挂载
+document.addEventListener("DOMContentLoaded", function() {
+    toggleScopeFields();
+});
+</script>
+{% endblock %}

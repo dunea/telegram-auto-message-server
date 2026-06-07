@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}本地与云端存储文件管理 - TG 自动消息服务{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">文件存储与管理</h1>
+        <p class="text-sm text-gray-500 mt-1">上传及管理用于 Telegram 发送的本地临时文件（自动异步备份至 S3 存储桶）。</p>
+    </div>
+
+    <!-- Upload Form Card -->
+    <div class="bg-white shadow sm:rounded-lg mb-8 border border-gray-200">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">上传新文件</h3>
+            <div class="mt-2 max-w-xl text-sm text-gray-500">
+                <p>支持媒体、文档或图片等多种格式，上传后系统将创建生命周期并托管到分布式文件存储中。</p>
+            </div>
+            <form action="/web/files/upload" method="post" enctype="multipart/form-data" class="mt-5 sm:flex sm:items-center">
+                <div class="w-full sm:max-w-xs">
+                    <label class="sr-only">选择文件</label>
+                    <input type="file" name="file" required
+                           class="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-1.5 text-gray-600 bg-white">
+                </div>
+                <button type="submit"
+                        class="mt-3 w-full inline-flex items-center justify-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    开始上传
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Files Table Card -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+        <div class="px-4 py-5 border-b border-gray-200 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">所有托管文件列表</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件 ID</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件名 (本地路径)</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S3 状态</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">大小 (Bytes)</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">过期时间</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% if not files %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
+                            暂无任何托管文件。请在上方上传一个新文件开始。
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% for file in files %}
+                    <tr class="hover:bg-gray-50 transition duration-150 text-sm">
+                        <!-- 文件 ID -->
+                        <td class="px-6 py-4 whitespace-nowrap font-mono text-gray-500 font-bold">
+                            #{{ file.id }}
+                        </td>
+                        <!-- 文件名 -->
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 max-w-xs truncate" title="{{ file.local_path }}">
+                            <span class="font-medium text-gray-900">{{ file.local_path | basename }}</span>
+                            <div class="text-xs text-gray-400 mt-1 font-mono truncate">{{ file.local_path }}</div>
+                        </td>
+                        <!-- S3 状态 -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if file.status == 'uploaded' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Uploaded (已同步)
+                            </span>
+                            {% elif file.status == 'pending' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Pending (等待同步)
+                            </span>
+                            {% elif file.status == 'deleted' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                Deleted (已软删除)
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {{ file.status }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <!-- 文件大小 -->
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono">
+                            {{ file.file_size_bytes }} B
+                        </td>
+                        <!-- 创建时间 -->
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs font-mono">
+                            {{ file.created_at.strftime('%Y-%m-%d %H:%M:%S') if file.created_at else '' }}
+                        </td>
+                        <!-- 过期时间 -->
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs font-mono">
+                            {{ file.expires_at.strftime('%Y-%m-%d %H:%M:%S') if file.expires_at else '无' }}
+                        </td>
+                        <!-- 操作 -->
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div class="flex items-center justify-end gap-3">
+                                {% if file.status != 'deleted' %}
+                                <a href="/web/files/{{ file.id }}/download" 
+                                   class="text-indigo-600 hover:text-indigo-900 flex items-center bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition">
+                                    下载
+                                </a>
+                                <form action="/web/files/{{ file.id }}/delete" method="post" onsubmit="return confirm('确定要软删除并清理该文件吗？');">
+                                    <button type="submit" 
+                                            class="text-red-600 hover:text-red-900 flex items-center bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition">
+                                        软删除
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span class="text-gray-400 italic text-xs">无可用操作</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

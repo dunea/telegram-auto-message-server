@@ -31,6 +31,15 @@ class ScheduledMessageTask(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, comment="任务启用状态"
     )
+    scope_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="all", comment="会话范围: all|specific"
+    )
+    conversation_ids: Mapped[list | None] = mapped_column(
+        JSON, nullable=True, comment="指定会话ID列表(JSON数组)"
+    )
+    message_ids: Mapped[list | None] = mapped_column(
+        JSON, nullable=True, comment="关联消息内容ID列表(JSON数组)"
+    )
 
 
 class RuleMessageTask(Base, TimestampMixin):

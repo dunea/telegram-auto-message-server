@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}账号详情 - TG 自动消息服务{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="mb-6 flex justify-between items-center">
+        <a href="/web/accounts" class="text-indigo-600 hover:text-indigo-900 font-medium flex items-center gap-1">
+            &larr; 返回账号列表
+        </a>
+        <div class="flex gap-2">
+            <button hx-post="/web/accounts/{{ account.id }}/online"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                一键上线 / 刷新
+            </button>
+            <button hx-post="/web/accounts/{{ account.id }}/delete"
+                    hx-confirm="确认软删除该账号吗？"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                停用并删除
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Account Info Card -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg lg:col-span-1">
+            <div class="px-4 py-5 sm:px-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">账号基本信息</h3>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500">托管详情及连接配置。</p>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-5 sm:p-0">
+                <dl class="sm:divide-y divide-gray-200">
+                    <div class="py-3 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">手机号</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ account.phone_number }}</dd>
+                    </div>
+                    <div class="py-3 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">展示名称</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ account.display_name or "未知" }}</dd>
+                    </div>
+                    <div class="py-3 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">Telegram ID</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ account.telegram_user_id or "未获取" }}</dd>
+                    </div>
+                    <div class="py-3 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">在线状态</dt>
+                        <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+                            {% if account.is_online %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">在线</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">离线</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="py-3 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">调度启用</dt>
+                        <dd class="mt-1 text-sm sm:mt-0 sm:col-span-2">
+                            {% if account.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">已启用</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">已停用</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="py-3 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">绑定的代理</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                            {% if proxy %}
+                            {{ proxy.proxy_host }}:{{ proxy.proxy_port }}
+                            {% else %}
+                            无代理直连
+                            {% endif %}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Dialogs/Conversations List -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg lg:col-span-2">
+            <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">最近聊天会话</h3>
+                    <p class="mt-1 max-w-2xl text-sm text-gray-500">仅在账号在线时加载最近的对话列表。</p>
+                </div>
+            </div>
+            <div class="border-t border-gray-200">
+                {% if error_msg %}
+                <div class="p-4 bg-red-50 text-red-700 text-sm">
+                    {{ error_msg }}
+                </div>
+                {% endif %}
+
+                {% if account.is_online %}
+                <ul role="list" class="divide-y divide-gray-200 max-h-[500px] overflow-y-auto">
+                    {% for conv in conversations %}
+                    <li class="p-4 flex justify-between items-center hover:bg-gray-50">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-gray-900 truncate">{{ conv.title or "群组/联系人" }}</p>
+                            <p class="text-xs text-gray-500 mt-1">ID: {{ conv.id }} | 类型: {{ conv.type }}</p>
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            {% if conv.unread_count %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                {{ conv.unread_count }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% else %}
+                    <li class="p-8 text-center text-gray-500">
+                        没有拉取到任何活跃会话。
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="p-8 text-center text-gray-500">
+                    账号当前离线，无法获取会话列表。请点击上方【一键上线】按钮。
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

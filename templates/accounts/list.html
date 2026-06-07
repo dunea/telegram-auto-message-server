@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}账号管理 - TG 自动消息服务{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">账号管理</h1>
+        <a href="/web/accounts/new" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+            导入/登录账号
+        </a>
+    </div>
+
+    <div class="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul role="list" class="divide-y divide-gray-200">
+            {% for account in accounts %}
+            <li class="p-6 hover:bg-gray-50 transition duration-150">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center min-w-0">
+                        <div class="ml-4">
+                            <p class="text-lg font-medium text-indigo-600 truncate">
+                                <a href="/web/accounts/{{ account.id }}" class="hover:underline">
+                                    {{ account.phone_number }}
+                                </a>
+                            </p>
+                            <p class="text-sm text-gray-500 mt-1">
+                                名称: {{ account.display_name or "未登录" }} 
+                                | ID: {{ account.telegram_user_id or "-" }}
+                                | 代理: {% if account.proxy_id and proxies.get(account.proxy_id) %}{{ proxies.get(account.proxy_id).proxy_host }}:{{ proxies.get(account.proxy_id).proxy_port }}{% else %}无{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <!-- Online/Offline Badge -->
+                        <div>
+                            {% if account.is_online %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                在线
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                离线
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Active Toggle with HTMX -->
+                        <div id="status-badge-{{ account.id }}">
+                            <button hx-post="/web/accounts/{{ account.id }}/toggle-active"
+                                    hx-target="#status-badge-{{ account.id }}"
+                                    hx-swap="outerHTML"
+                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
+                                {% if account.is_active %}
+                                <span class="text-green-600 font-bold">● 启用中</span>
+                                {% else %}
+                                <span class="text-red-500 font-bold">○ 已禁用</span>
+                                {% endif %}
+                            </button>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex space-x-2">
+                            <a href="/web/accounts/{{ account.id }}" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200">
+                                详情
+                            </a>
+                            <button hx-post="/web/accounts/{{ account.id }}/delete"
+                                    hx-confirm="确认软删除此账号并停用吗？"
+                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200">
+                                删除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </li>
+            {% else %}
+            <li class="p-6 text-center text-gray-500">
+                暂无托管账号，请点击右上角按钮导入。
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

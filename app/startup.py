@@ -118,6 +118,14 @@ def create_api_application(settings: Settings) -> FastAPI:
     register_global_exception_handlers(app)
     app.include_router(build_api_router())
 
+    import os
+    from fastapi.staticfiles import StaticFiles
+    from app.web import register_web_routes
+
+    os.makedirs("static/css", exist_ok=True)
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    register_web_routes(app)
+
     return app
 
 

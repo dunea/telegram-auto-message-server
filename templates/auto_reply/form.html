@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}{% if rule %}编辑{% else %}创建{% endif %}自动回复规则 - TG 自动消息服务{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Back Navigation -->
+    <div class="mb-4">
+        <a href="/web/auto-reply" class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            返回列表
+        </a>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-6 py-5 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-lg leading-6 font-semibold text-gray-900">
+                {% if rule %}修改自动回复规则{% else %}新增自动回复规则{% endif %}
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                配置特定账号的匹配条件和对应的被动响应内容
+            </p>
+        </div>
+
+        <form action="{% if rule %}/web/auto-reply/{{ rule.rule_id }}/edit{% else %}/web/auto-reply/new{% endif %}" method="POST" class="p-6 space-y-6">
+            <!-- 托管账号 -->
+            <div>
+                <label for="account_id" class="block text-sm font-medium text-gray-700">关联托管账号 <span class="text-red-500">*</span></label>
+                <select id="account_id" name="account_id" required 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        {% if rule %}disabled class="bg-gray-100"{% endif %}>
+                    <option value="">-- 请选择账号 --</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}" {% if rule and rule.account_id|string == acc.id|string %}selected{% endif %}>
+                        {{ acc.display_name or acc.phone_number }} (ID: {{ acc.id }})
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if rule %}
+                <!-- 编辑模式下由于 select 禁用，我们传递隐藏的 input 作为真正的表单传参 -->
+                <input type="hidden" name="account_id" value="{{ rule.account_id }}">
+                {% endif %}
+            </div>
+
+            <!-- 触发模式 -->
+            <div>
+                <label for="trigger_mode" class="block text-sm font-medium text-gray-700">触发匹配模式 <span class="text-red-500">*</span></label>
+                <select id="trigger_mode" name="trigger_mode" onchange="toggleTriggerFields()" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <option value="keyword" {% if rule and rule.trigger_mode == "keyword" %}selected{% endif %}>关键词触发</option>
+                    <option value="all" {% if rule and rule.trigger_mode == "all" %}selected{% endif %}>全匹配触发 (所有接收到的消息都回复)</option>
+                </select>
+            </div>
+
+            <!-- 关键词配置项 -->
+            <div id="keyword-fields-container" class="space-y-4 border border-blue-50 p-4 rounded bg-blue-50/40">
+                <div>
+                    <label for="trigger_keyword" class="block text-sm font-medium text-gray-700">主触发关键词 <span class="text-red-500">*</span></label>
+                    <input type="text" name="trigger_keyword" id="trigger_keyword" 
+                           value="{{ rule.trigger_keyword if rule else '' }}"
+                           placeholder="比如: 你好"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <p class="mt-1 text-xs text-gray-400">核心触发条件词，大小写不敏感。</p>
+                </div>
+                <div>
+                    <label for="keywords" class="block text-sm font-medium text-gray-700">备选多关键词 (以英文逗号 , 隔开)</label>
+                    <input type="text" name="keywords" id="keywords" 
+                           value="{{ keywords_str if rule else '' }}"
+                           placeholder="比如: hello,hi,在吗"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <p class="mt-1 text-xs text-gray-400">只要命中了主触发词或这里的任何一个备选词，就会执行自动回复。</p>
+                </div>
+            </div>
+
+            <!-- 会话范围 -->
+            <div>
+                <label for="scope_mode" class="block text-sm font-medium text-gray-700">会话响应范围 <span class="text-red-500">*</span></label>
+                <select id="scope_mode" name="scope_mode" onchange="toggleScopeFields()" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <option value="all" {% if rule and rule.scope_mode == "all" %}selected{% endif %}>所有群组与私聊会话</option>
+                    <option value="specific" {% if rule and rule.scope_mode == "specific" %}selected{% endif %}>仅指定私聊/群组会话 ID</option>
+                </select>
+            </div>
+
+            <!-- 指定会话 ID -->
+            <div id="scope-fields-container" class="border border-orange-50 p-4 rounded bg-orange-50/30">
+                <label for="conversation_ids" class="block text-sm font-medium text-gray-700">指定会话 ID (以英文逗号 , 隔开) <span class="text-red-500">*</span></label>
+                <input type="text" name="conversation_ids" id="conversation_ids" 
+                       value="{{ conv_ids_str if rule else '' }}"
+                       placeholder="比如: 123456789, -100234567890"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <p class="mt-1 text-xs text-gray-400">仅对特定会话生效，群组 ID 通常以 -100 开头。</p>
+            </div>
+
+            <hr class="border-gray-200">
+
+            <!-- 主文本内容 -->
+            <div>
+                <label for="reply_content" class="block text-sm font-medium text-gray-700">默认回复文本</label>
+                <textarea id="reply_content" name="reply_content" rows="3"
+                          placeholder="如果下面的消息池中没有任何内容，将使用此默认回复文本"
+                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ rule.reply_content if rule else '' }}</textarea>
+            </div>
+
+            <!-- 高阶：消息池 (Message Pool) -->
+            <div class="border border-indigo-100 rounded-lg p-4 bg-indigo-50/10">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-800">随机回复消息池 (Message Pool)</h4>
+                        <p class="text-xs text-gray-400 mt-0.5">配置多条备选应答，程序将随机选择一条。支持选择已上传文件作为多媒体附件！</p>
+                    </div>
+                    <button type="button" onclick="addMessageItem()" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        添加消息备选项
+                    </button>
+                </div>
+
+                <div id="message-pool-container" class="space-y-3">
+                    {% if rule and rule.reply_messages %}
+                        {% for msg in rule.reply_messages %}
+                            {% set selected_file_id = "" %}
+                            {% if msg.media and msg.media | length > 0 %}
+                                {% set selected_file_id = msg.media[0].file_record_id %}
+                            {% endif %}
+                            <div class="message-item border p-4 rounded-lg bg-gray-50/80 mb-3 relative flex flex-col gap-2">
+                                <button type="button" onclick="this.parentElement.remove()" class="absolute top-2 right-2 text-red-500 text-sm hover:underline">删除</button>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">消息文本</label>
+                                    <textarea name="reply_messages_text" required class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2">{{ msg.text }}</textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
+                                    <select name="reply_messages_file_id" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option value="">-- 无附件 --</option>
+                                        {% for file in files %}
+                                        <option value="{{ file.id }}" {% if selected_file_id|string == file.id|string %}selected{% endif %}>
+                                            {{ file.local_path }} (ID: {{ file.id }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <a href="/web/auto-reply" class="inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition">
+                    取消
+                </a>
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition">
+                    保存规则
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// 动态切换触发字段
+function toggleTriggerFields() {
+    const triggerMode = document.getElementById('trigger_mode').value;
+    const container = document.getElementById('keyword-fields-container');
+    const primaryInput = document.getElementById('trigger_keyword');
+    
+    if (triggerMode === 'keyword') {
+        container.style.display = 'block';
+        primaryInput.required = true;
+    } else {
+        container.style.display = 'none';
+        primaryInput.required = false;
+    }
+}
+
+// 动态切换会话范围字段
+function toggleScopeFields() {
+    const scopeMode = document.getElementById('scope_mode').value;
+    const container = document.getElementById('scope-fields-container');
+    const input = document.getElementById('conversation_ids');
+    
+    if (scopeMode === 'specific') {
+        container.style.display = 'block';
+        input.required = true;
+    } else {
+        container.style.display = 'none';
+        input.required = false;
+    }
+}
+
+// 动态增删消息池 HTML 模板
+function addMessageItem() {
+    const container = document.getElementById('message-pool-container');
+    const html = `
+    <div class="message-item border p-4 rounded-lg bg-gray-50/80 mb-3 relative flex flex-col gap-2">
+        <button type="button" onclick="this.parentElement.remove()" class="absolute top-2 right-2 text-red-500 text-sm hover:underline">删除</button>
+        <div>
+            <label class="block text-sm font-medium text-gray-700">消息文本</label>
+            <textarea name="reply_messages_text" required class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2"></textarea>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
+            <select name="reply_messages_file_id" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <option value="">-- 无附件 --</option>
+                {% for file in files %}
+                <option value="{{ file.id }}">${escapeHtml("{{ file.local_path }}")} (ID: {{ file.id }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+// 转义特殊 HTML 字符防止安全隐患
+function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+// 初始页面挂载
+document.addEventListener("DOMContentLoaded", function() {
+    toggleTriggerFields();
+    toggleScopeFields();
+});
+</script>
+{% endblock %}

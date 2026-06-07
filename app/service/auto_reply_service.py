@@ -35,6 +35,14 @@ class AutoReplyService:
                     "rule_id": int(msg.rule_id),
                     "text": msg.text,
                     "sort_order": msg.sort_order,
+                    "media": [
+                        {
+                            "id": int(m.id),
+                            "file_record_id": m.file_record_id,
+                            "sort_order": m.sort_order,
+                        }
+                        for m in (msg.media or [])
+                    ],
                 }
                 for msg in (rule.reply_messages or [])
             ],
@@ -66,10 +74,19 @@ class AutoReplyService:
         if reply_messages:
             reply_repo = SqlAlchemyReplyMessageRepository(self._session)
             for msg_data in reply_messages:
+                media_objs = []
+                if msg_data.media:
+                    from app.models.reply_message_media import ReplyMessageMedia
+                    for m in msg_data.media:
+                        media_objs.append(ReplyMessageMedia(
+                            file_record_id=m.file_record_id,
+                            sort_order=m.sort_order
+                        ))
                 reply_repo.Save(ReplyMessage(
                     rule_id=int(rule.id),
                     text=msg_data.text,
                     sort_order=msg_data.sort_order,
+                    media=media_objs,
                 ))
             self._session.commit()
         return self._to_rule_dict(rule)
@@ -112,10 +129,19 @@ class AutoReplyService:
             reply_repo = SqlAlchemyReplyMessageRepository(self._session)
             reply_repo.DeleteAllByRuleId(rule_id)
             for msg_data in reply_messages:
+                media_objs = []
+                if msg_data.media:
+                    from app.models.reply_message_media import ReplyMessageMedia
+                    for m in msg_data.media:
+                        media_objs.append(ReplyMessageMedia(
+                            file_record_id=m.file_record_id,
+                            sort_order=m.sort_order
+                        ))
                 reply_repo.Save(ReplyMessage(
                     rule_id=rule_id,
                     text=msg_data.text,
                     sort_order=msg_data.sort_order,
+                    media=media_objs,
                 ))
             self._session.commit()
         return self._to_rule_dict(rule)
@@ -130,6 +156,24 @@ class AutoReplyService:
     def SoftDeleteRule(self, rule_id: int) -> dict[str, Any]:
         rule = self.SetRuleActive(rule_id=rule_id, is_active=False)
         return {**rule, "deleted": True}
+
+    def ListRules(self, account_id: int | None = None, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        if account_id is not None:
+            return self.ListRulesByAccountId(account_id, limit, offset)
+        
+        from sqlalchemy import select, func
+        stmt = (
+            select(AutoReplyRule)
+            .order_by(AutoReplyRule.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        items = list(self._session.scalars(stmt).all())
+        total = int(self._session.scalar(select(func.count(AutoReplyRule.id))) or 0)
+        return {
+            "total": total,
+            "items": [self._to_rule_dict(item) for item in items],
+        }
 
     def ListRulesByAccountId(self, account_id: int, limit: int, offset: int) -> dict[str, Any]:
         items = self._auto_reply_rule_repository.FindAllByAccountIdOrderByIdDesc(

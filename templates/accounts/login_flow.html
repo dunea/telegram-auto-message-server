@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}添加账号 - TG 自动消息服务{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+    <div class="mb-6">
+        <a href="/web/accounts" class="text-indigo-600 hover:text-indigo-900 font-medium flex items-center gap-1">
+            &larr; 返回账号列表
+        </a>
+    </div>
+
+    <div class="bg-white shadow sm:rounded-lg overflow-hidden">
+        <div class="border-b border-gray-200">
+            <nav class="flex -mb-px" aria-label="Tabs">
+                <button onclick="switchTab('phone-tab', 'session-tab')" id="phone-btn" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">
+                    手机验证码登录
+                </button>
+                <button onclick="switchTab('session-tab', 'phone-tab')" id="session-btn" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    直接导入 Session 字符串
+                </button>
+            </nav>
+        </div>
+
+        <div class="p-6">
+            <!-- Tab 1: Phone Login -->
+            <div id="phone-tab">
+                <div id="login-flow-container">
+                    <!-- Step 1 Form -->
+                    <form hx-post="/web/accounts/login/phone/request-code" hx-target="#login-flow-container" hx-swap="innerHTML" class="space-y-6">
+                        <div>
+                            <label for="phone_number" class="block text-sm font-medium text-gray-700">手机号 (格式: +8613800000000)</label>
+                            <input type="text" name="phone_number" id="phone_number" placeholder="+8613800000000" required
+                                   class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+
+                        <div>
+                            <label for="proxy_id" class="block text-sm font-medium text-gray-700">网络代理 (可选)</label>
+                            <select name="proxy_id" id="proxy_id"
+                                    class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <option value="">直连 (不使用代理)</option>
+                                {% for proxy in proxies %}
+                                <option value="{{ proxy.id }}">{{ proxy.proxy_host }}:{{ proxy.proxy_port }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                发送验证码
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tab 2: Session Login -->
+            <div id="session-tab" class="hidden">
+                <div id="session-flow-container">
+                    <form hx-post="/web/accounts/login/session" hx-target="#session-flow-container" hx-swap="innerHTML" class="space-y-6">
+                        <div>
+                            <label for="phone_number_session" class="block text-sm font-medium text-gray-700">手机号</label>
+                            <input type="text" name="phone_number" id="phone_number_session" placeholder="+8613800000000" required
+                                   class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+
+                        <div>
+                            <label for="session_string" class="block text-sm font-medium text-gray-700">Session 字符串</label>
+                            <textarea name="session_string" id="session_string" rows="5" placeholder="1BJWV1tQBu..." required
+                                      class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
+                        </div>
+
+                        <div>
+                            <label for="proxy_id_session" class="block text-sm font-medium text-gray-700">网络代理 (可选)</label>
+                            <select name="proxy_id" id="proxy_id_session"
+                                    class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <option value="">直连 (不使用代理)</option>
+                                {% for proxy in proxies %}
+                                <option value="{{ proxy.id }}">{{ proxy.proxy_host }}:{{ proxy.proxy_port }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                确认导入并上线
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function switchTab(showId, hideId) {
+        document.getElementById(showId).classList.remove('hidden');
+        document.getElementById(hideId).classList.add('hidden');
+        
+        if (showId === 'phone-tab') {
+            document.getElementById('phone-btn').className = 'w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-indigo-500 text-indigo-600';
+            document.getElementById('session-btn').className = 'w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+        } else {
+            document.getElementById('session-btn').className = 'w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-indigo-500 text-indigo-600';
+            document.getElementById('phone-btn').className = 'w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+        }
+    }
+</script>
+{% endblock %}

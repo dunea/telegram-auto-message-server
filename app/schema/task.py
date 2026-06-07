@@ -11,6 +11,9 @@ class CreateScheduledTaskRequest(BaseModel):
     target_identifier: str
     message_content: MessageContentInput | None = None
     message_template: str = Field(default="", max_length=100000)
+    scope_mode: str = Field(default="all", max_length=20)
+    conversation_ids: list[int] | None = None
+    message_ids: list[int] | None = None
 
 
 class CreateRuleTaskRequest(BaseModel):
@@ -22,6 +25,9 @@ class CreateRuleTaskRequest(BaseModel):
     action_json: str
     message_content: MessageContentInput | None = None
     message_template: str = Field(default="", max_length=100000)
+    scope_mode: str = Field(default="all", max_length=20)
+    conversation_ids: list[int] | None = None
+    message_ids: list[int] | None = None
 
 
 class UpdateScheduledTaskRequest(BaseModel):
@@ -31,6 +37,9 @@ class UpdateScheduledTaskRequest(BaseModel):
     target_identifier: str = Field(..., min_length=1, max_length=255)
     message_content: MessageContentInput | None = None
     message_template: str = Field(default="", max_length=100000)
+    scope_mode: str | None = Field(default=None, max_length=20)
+    conversation_ids: list[int] | None = None
+    message_ids: list[int] | None = None
 
 
 class UpdateTaskActiveRequest(BaseModel):
@@ -49,6 +58,9 @@ class ScheduledTaskResponse(BaseModel):
     message_template: str
     message_content_id: int | None = None
     is_active: bool
+    scope_mode: str = "all"
+    conversation_ids: list[int] | None = None
+    message_ids: list[int] | None = None
 
 
 class ScheduledTaskListResponse(BaseModel):
