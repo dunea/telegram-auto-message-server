@@ -84,13 +84,13 @@ class AutoReplyRule(Base, TimestampMixin):
     trigger_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="keyword", comment="触发模式: keyword|all"
     )
-    keywords: Mapped[dict | None] = mapped_column(
+    keywords: Mapped[list | None] = mapped_column(
         JSON, nullable=True, comment="关键词列表(JSON数组)"
     )
     scope_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="all", comment="会话范围: all|specific"
     )
-    conversation_ids: Mapped[dict | None] = mapped_column(
+    conversation_ids: Mapped[list | None] = mapped_column(
         JSON, nullable=True, comment="指定会话ID列表(JSON数组)"
     )
 
