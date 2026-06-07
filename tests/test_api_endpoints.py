@@ -87,15 +87,25 @@ class FakeAutoReplyService:
             "trigger_keyword": "hi",
             "reply_content": "hello",
             "is_active": True,
+            "trigger_mode": "keyword",
+            "keywords": ["hi"],
+            "scope_mode": "all",
+            "conversation_ids": None,
+            "reply_messages": [],
         }
 
-    def CreateRule(self, account_id: int, trigger_keyword: str, reply_content: str) -> dict:
+    def CreateRule(self, account_id: int, trigger_keyword: str = "", reply_content: str = "", trigger_mode: str = "keyword", keywords: list[str] | None = None, scope_mode: str = "all", conversation_ids: list[int] | None = None, reply_messages: list | None = None) -> dict:
         self._rule = {
             "rule_id": 2,
             "account_id": account_id,
             "trigger_keyword": trigger_keyword,
             "reply_content": reply_content,
             "is_active": True,
+            "trigger_mode": trigger_mode,
+            "keywords": keywords,
+            "scope_mode": scope_mode,
+            "conversation_ids": conversation_ids,
+            "reply_messages": [],
         }
         return dict(self._rule)
 
@@ -108,16 +118,22 @@ class FakeAutoReplyService:
             raise ValueError("回复消息不存在")
         return {**self._rule, "rule_id": rule_id}
 
-    def UpdateRule(self, rule_id: int, trigger_keyword: str, reply_content: str) -> dict:
+    def UpdateRule(self, rule_id: int, trigger_keyword: str | None = None, reply_content: str | None = None, trigger_mode: str | None = None, keywords: list[str] | None = None, scope_mode: str | None = None, conversation_ids: list[int] | None = None, reply_messages: list | None = None) -> dict:
         if rule_id == 404:
             raise ValueError("回复消息不存在")
-        self._rule = {
-            "rule_id": rule_id,
-            "account_id": self._rule["account_id"],
-            "trigger_keyword": trigger_keyword,
-            "reply_content": reply_content,
-            "is_active": self._rule["is_active"],
-        }
+        if trigger_keyword is not None:
+            self._rule["trigger_keyword"] = trigger_keyword
+        if reply_content is not None:
+            self._rule["reply_content"] = reply_content
+        if trigger_mode is not None:
+            self._rule["trigger_mode"] = trigger_mode
+        if keywords is not None:
+            self._rule["keywords"] = keywords
+        if scope_mode is not None:
+            self._rule["scope_mode"] = scope_mode
+        if conversation_ids is not None:
+            self._rule["conversation_ids"] = conversation_ids
+        self._rule["rule_id"] = rule_id
         return dict(self._rule)
 
     def SetRuleActive(self, rule_id: int, is_active: bool) -> dict:
