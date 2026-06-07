@@ -25,7 +25,12 @@ class ScheduledMessageTaskRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def UpdateById(self, task_id: int, cron_expr: str, target_identifier: str, message_template: str) -> ScheduledMessageTask | None:
+    def UpdateById(
+        self, task_id: int, cron_expr: str, target_identifier: str, message_template: str,
+        scope_mode: str | None = None,
+        conversation_ids: list[int] | None = None,
+        message_ids: list[int] | None = None,
+    ) -> ScheduledMessageTask | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -61,7 +66,16 @@ class AutoReplyRuleRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def UpdateById(self, rule_id: int, trigger_keyword: str, reply_content: str) -> AutoReplyRule | None:
+    def UpdateById(
+        self,
+        rule_id: int,
+        trigger_keyword: str | None = None,
+        reply_content: str | None = None,
+        trigger_mode: str | None = None,
+        keywords: list[str] | None = None,
+        scope_mode: str | None = None,
+        conversation_ids: list[int] | None = None,
+    ) -> AutoReplyRule | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -101,13 +115,24 @@ class SqlAlchemyScheduledMessageTaskRepository(BaseRepository[ScheduledMessageTa
         stmt = select(func.count(ScheduledMessageTask.id)).where(ScheduledMessageTask.account_id == account_id)
         return int(self._session.scalar(stmt) or 0)
 
-    def UpdateById(self, task_id: int, cron_expr: str, target_identifier: str, message_template: str) -> ScheduledMessageTask | None:
+    def UpdateById(
+        self, task_id: int, cron_expr: str, target_identifier: str, message_template: str,
+        scope_mode: str | None = None,
+        conversation_ids: list[int] | None = None,
+        message_ids: list[int] | None = None,
+    ) -> ScheduledMessageTask | None:
         task = self.FindById(task_id)
         if task is None:
             return None
         task.cron_expr = cron_expr
         task.target_identifier = target_identifier
         task.message_template = message_template
+        if scope_mode is not None:
+            task.scope_mode = scope_mode
+        if conversation_ids is not None:
+            task.conversation_ids = conversation_ids
+        if message_ids is not None:
+            task.message_ids = message_ids
         self._session.flush()
         return task
 
@@ -162,12 +187,31 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
         )
         return list(self._session.scalars(stmt).all())
 
-    def UpdateById(self, rule_id: int, trigger_keyword: str, reply_content: str) -> AutoReplyRule | None:
+    def UpdateById(
+        self,
+        rule_id: int,
+        trigger_keyword: str | None = None,
+        reply_content: str | None = None,
+        trigger_mode: str | None = None,
+        keywords: list[str] | None = None,
+        scope_mode: str | None = None,
+        conversation_ids: list[int] | None = None,
+    ) -> AutoReplyRule | None:
         rule = self.FindById(rule_id)
         if rule is None:
             return None
-        rule.trigger_keyword = trigger_keyword
-        rule.reply_content = reply_content
+        if trigger_keyword is not None:
+            rule.trigger_keyword = trigger_keyword
+        if reply_content is not None:
+            rule.reply_content = reply_content
+        if trigger_mode is not None:
+            rule.trigger_mode = trigger_mode
+        if keywords is not None:
+            rule.keywords = keywords
+        if scope_mode is not None:
+            rule.scope_mode = scope_mode
+        if conversation_ids is not None:
+            rule.conversation_ids = conversation_ids
         self._session.flush()
         return rule
 
