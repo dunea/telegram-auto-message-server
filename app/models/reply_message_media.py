@@ -1,10 +1,10 @@
 from sqlalchemy import BigInteger, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, TimestampMixin
 
 
-class ReplyMessageMedia(Base):
+class ReplyMessageMedia(Base, TimestampMixin):
     __tablename__ = "reply_message_media"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -16,7 +16,7 @@ class ReplyMessageMedia(Base):
         BigInteger, ForeignKey("file_record.id", ondelete="SET NULL"),
         nullable=True
     )
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    sort_order: Mapped[int] = mapped_column(BigInteger, default=0)
 
     reply_message: Mapped["ReplyMessage"] = relationship(
         "ReplyMessage", back_populates="media"

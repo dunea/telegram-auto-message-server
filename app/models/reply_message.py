@@ -13,7 +13,7 @@ class ReplyMessage(Base, TimestampMixin):
         nullable=False, index=True
     )
     text: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    sort_order: Mapped[int] = mapped_column(BigInteger, default=0)
 
     rule: Mapped["AutoReplyRule"] = relationship(
         "AutoReplyRule", back_populates="reply_messages"
