@@ -13,6 +13,8 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"
+# 注意: 这不是第一个迁移，base 表 (auto_reply_rule, scheduled_message_task, file_record 等)
+# 已存在于生产环境，本迁移只做扩展 / 新增。
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -42,8 +44,8 @@ def upgrade() -> None:
         "reply_message",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("rule_id", sa.BigInteger(), nullable=False),
-        sa.Column("text", sa.Text(), nullable=False, server_default=""),
-        sa.Column("sort_order", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column("text", sa.Text(), nullable=False),
+        sa.Column("sort_order", sa.BigInteger(), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(),
@@ -76,7 +78,7 @@ def upgrade() -> None:
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("reply_message_id", sa.BigInteger(), nullable=False),
         sa.Column("file_record_id", sa.BigInteger(), nullable=True),
-        sa.Column("sort_order", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column("sort_order", sa.BigInteger(), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(),
