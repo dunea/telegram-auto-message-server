@@ -28,7 +28,7 @@
             <div>
                 <label for="account_id" class="block text-sm font-medium text-gray-700">关联托管账号 <span class="text-red-500">*</span></label>
                 <select id="account_id" name="account_id" required 
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm {% if task %}bg-gray-100{% endif %}"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border {% if task %}bg-gray-100{% endif %}"
                         {% if task %}disabled{% endif %}>
                     <option value="">-- 请选择账号 --</option>
                     {% for acc in accounts %}
@@ -84,7 +84,7 @@
             <div>
                 <label for="scope_mode" class="block text-sm font-medium text-gray-700">会话响应范围 <span class="text-red-500">*</span></label>
                 <select id="scope_mode" name="scope_mode" onchange="toggleScopeFields()" required
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
                     <option value="all" {% if task and task.scope_mode == "all" %}selected{% endif %}>发送到默认目标会话</option>
                     <option value="specific" {% if task and task.scope_mode == "specific" %}selected{% endif %}>轮询发送到指定会话列表</option>
                 </select>
@@ -112,7 +112,7 @@
             <div>
                 <label for="file_id" class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
                 <select id="file_id" name="file_id" 
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
                     <option value="">-- 无附件 --</option>
                     {% for file in files %}
                     <option value="{{ file.id }}" {% if selected_file_id|string == file.id|string %}selected{% endif %}>
