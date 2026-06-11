@@ -1,0 +1,5 @@
+# 开发与本地资源生成工具的依赖。
+# 线上部署仅需 requirements.txt；本文件仅在重新生成图标、
+# 跑一次性脚本（见 scripts/）时安装。
+#   pip install -r requirements-dev.txt
+Pillow>=10.0.0

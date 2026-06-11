@@ -10,6 +10,10 @@
     <meta name="author" content="{{ site_name }}">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#4f46e5">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="shortcut icon" href="/static/favicon.ico">
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="{{ site_name }} - {{ site_social_tagline }}">
@@ -35,31 +39,31 @@
             <div class="flex justify-between h-16">
                 <div class="flex">
                     <div class="flex-shrink-0 flex items-center">
-                        <span class="text-xl font-bold text-indigo-600 flex items-center gap-2">
+                        <a href="/" class="text-xl font-bold text-indigo-600 flex items-center gap-2 hover:opacity-80 transition duration-150">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
                             {{ site_name }}
-                        </span>
+                        </a>
                     </div>
                     {% if user_id or current_user %}
                     <div class="hidden sm:-my-px sm:ml-8 sm:flex sm:space-x-8">
-                        <a href="/web/dashboard" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="/web/dashboard" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/dashboard' or request.url.path.startswith('/web/dashboard/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             仪表盘
                         </a>
-                        <a href="/web/accounts" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="/web/accounts" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/accounts' or request.url.path.startswith('/web/accounts/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             账号管理
                         </a>
-                        <a href="/web/auto-reply" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="/web/auto-reply" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/auto-reply' or request.url.path.startswith('/web/auto-reply/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             自动回复
                         </a>
-                        <a href="/web/scheduled" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="/web/scheduled" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/scheduled' or request.url.path.startswith('/web/scheduled/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             定时消息
                         </a>
-                        <a href="/web/messages" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="/web/messages" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/messages' or request.url.path.startswith('/web/messages/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             群发历史
                         </a>
-                        <a href="/web/files" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="/web/files" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/files' or request.url.path.startswith('/web/files/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             文件管理
                         </a>
                     </div>

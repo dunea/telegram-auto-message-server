@@ -3,7 +3,7 @@
 {% block title %}登录 - {{ site_name }}{% endblock %}
 
 {% block body %}
-<div class="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gray-50 flex flex-col justify-center py-6 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
         <div class="flex justify-center">
             <span class="text-3xl font-extrabold text-indigo-600 flex items-center gap-2">
@@ -14,18 +14,12 @@
             </span>
         </div>
         <p class="mt-2 text-center text-sm text-gray-500">{{ site_subtitle }}</p>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 class="mt-4 text-center text-3xl font-extrabold text-gray-900">
             登录到您的账户
         </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
-            或者
-            <a href="/web/register" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
-                注册新账户
-            </a>
-        </p>
     </div>
 
-    <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+    <div class="mt-4 sm:mx-auto sm:w-full sm:max-w-md">
         <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200">
             
             {% if registered %}
@@ -87,6 +81,12 @@
                     </button>
                 </div>
             </form>
+            <p class="text-center text-sm text-gray-600 pt-2">
+                还没有账户？
+                <a href="/web/register" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
+                    立即注册
+                </a>
+            </p>
         </div>
     </div>
 </div>
