@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/empty_state.html" import empty_state %}
 {% block title %}账号详情 - {{ site_name }}{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -106,8 +107,8 @@
                         </div>
                     </li>
                     {% else %}
-                    <li class="p-8 text-center text-gray-500">
-                        没有拉取到任何活跃会话。
+                    <li class="p-8">
+                        {{ empty_state("没有拉取到任何活跃会话") }}
                     </li>
                     {% endfor %}
                 </ul>

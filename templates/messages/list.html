@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/empty_state.html" import empty_state %}
 {% block title %}群发与历史消息记录 - {{ site_name }}{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -53,8 +54,8 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% if not messages %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
-                            暂无任何消息记录。
+                        <td colspan="7" class="px-6 py-10">
+                            {{ empty_state("暂无任何消息记录") }}
                         </td>
                     </tr>
                     {% endif %}

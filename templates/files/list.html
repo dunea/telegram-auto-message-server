@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_partials/empty_state.html" import empty_state %}
 {% block title %}本地与云端存储文件管理 - {{ site_name }}{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -53,8 +54,8 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% if not files %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
-                            暂无任何托管文件。请在上方上传一个新文件开始。
+                        <td colspan="7" class="px-6 py-10">
+                            {{ empty_state("暂无任何托管文件", "请在上方上传一个新文件开始") }}
                         </td>
                     </tr>
                     {% endif %}
