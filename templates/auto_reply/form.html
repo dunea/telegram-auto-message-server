@@ -27,8 +27,8 @@
             <!-- 托管账号 -->
             <div>
                 <label for="account_id" class="block text-sm font-medium text-gray-700">关联托管账号 <span class="text-red-500">*</span></label>
-                <select id="account_id" name="account_id" required 
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                 <select id="account_id" name="account_id" required 
+                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border"
                         {% if rule %}disabled class="bg-gray-100"{% endif %}>
                     <option value="">-- 请选择账号 --</option>
                     {% for acc in accounts %}
@@ -46,8 +46,8 @@
             <!-- 触发模式 -->
             <div>
                 <label for="trigger_mode" class="block text-sm font-medium text-gray-700">触发匹配模式 <span class="text-red-500">*</span></label>
-                <select id="trigger_mode" name="trigger_mode" onchange="toggleTriggerFields()" required
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                 <select id="trigger_mode" name="trigger_mode" onchange="toggleTriggerFields()" required
+                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
                     <option value="keyword" {% if rule and rule.trigger_mode == "keyword" %}selected{% endif %}>关键词触发</option>
                     <option value="all" {% if rule and rule.trigger_mode == "all" %}selected{% endif %}>全匹配触发 (所有接收到的消息都回复)</option>
                 </select>
@@ -76,8 +76,8 @@
             <!-- 会话范围 -->
             <div>
                 <label for="scope_mode" class="block text-sm font-medium text-gray-700">会话响应范围 <span class="text-red-500">*</span></label>
-                <select id="scope_mode" name="scope_mode" onchange="toggleScopeFields()" required
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                 <select id="scope_mode" name="scope_mode" onchange="toggleScopeFields()" required
+                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
                     <option value="all" {% if rule and rule.scope_mode == "all" %}selected{% endif %}>所有群组与私聊会话</option>
                     <option value="specific" {% if rule and rule.scope_mode == "specific" %}selected{% endif %}>仅指定私聊/群组会话 ID</option>
                 </select>
@@ -133,7 +133,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
-                                    <select name="reply_messages_file_id" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                     <select name="reply_messages_file_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
                                         <option value="">-- 无附件 --</option>
                                         {% for file in files %}
                                         <option value="{{ file.id }}" {% if selected_file_id|string == file.id|string %}selected{% endif %}>
@@ -204,7 +204,7 @@ function addMessageItem() {
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
-            <select name="reply_messages_file_id" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+             <select name="reply_messages_file_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
                 <option value="">-- 无附件 --</option>
                 {% for file in files %}
                 <option value="{{ file.id }}">${escapeHtml("{{ file.local_path }}")} (ID: {{ file.id }})</option>
