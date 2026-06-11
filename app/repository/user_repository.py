@@ -11,6 +11,10 @@ class UserRepository(ABC):
     """API 用户仓储接口。"""
 
     @abstractmethod
+    def Save(self, entity: User) -> User:
+        raise NotImplementedError
+
+    @abstractmethod
     def FindById(self, user_id: int) -> User | None:
         raise NotImplementedError
 

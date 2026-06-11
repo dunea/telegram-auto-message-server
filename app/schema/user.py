@@ -5,14 +5,14 @@ class RegisterUserRequest(BaseModel):
     """用户注册请求。"""
 
     email: str = Field(..., min_length=5, max_length=255)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=6, max_length=128)
 
 
 class LoginUserRequest(BaseModel):
     """用户登录请求。"""
 
     email: str = Field(..., min_length=5, max_length=255)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=6, max_length=128)
 
 
 class AccessTokenResponse(BaseModel):

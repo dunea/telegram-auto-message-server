@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import re
 import uuid
 
 import jwt
@@ -8,16 +9,17 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models.user import User
-from app.repository.user_repository import SqlAlchemyUserRepository
+from app.repository.user_repository import UserRepository
 
 
 _PASSWORD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9_%+\-]+(?:\.[A-Za-z0-9_%+\-]+)*@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 
 
 class AuthService:
     """用户注册登录与 JWT 认证服务。"""
 
-    def __init__(self, settings: Settings, session: Session, user_repository: SqlAlchemyUserRepository) -> None:
+    def __init__(self, settings: Settings, session: Session, user_repository: UserRepository) -> None:
         self._settings = settings
         self._session = session
         self._user_repository = user_repository
@@ -85,8 +87,10 @@ class AuthService:
 
     def RegisterUser(self, email: str, password: str) -> dict:
         normalized_email = self._normalize_email(email)
-        if "@" not in normalized_email:
+        if _EMAIL_PATTERN.match(normalized_email) is None:
             raise ValueError("邮箱格式不合法")
+        if len(password) < 6 or len(password) > 128:
+            raise ValueError("密码长度需在 6-128 位之间")
         if self._user_repository.ExistsByEmail(normalized_email):
             raise ValueError("邮箱已注册")
 

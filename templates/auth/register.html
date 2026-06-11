@@ -3,7 +3,7 @@
 {% block title %}注册 - {{ site_name }}{% endblock %}
 
 {% block body %}
-<div class="min-h-screen bg-gray-50 flex flex-col justify-center py-6 sm:px-6 lg:px-8">
+<div class="min-h-[calc(100vh-7rem)] bg-gray-50 flex flex-col justify-center sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
         <div class="flex justify-center">
             <span class="text-3xl font-extrabold text-indigo-600 flex items-center gap-2">
@@ -45,7 +45,7 @@
                         电子邮箱
                     </label>
                     <div class="mt-1">
-                        <input id="email" name="email" type="email" autocomplete="email" required class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <input id="email" name="email" type="email" autocomplete="email" required placeholder="请输入邮箱地址" class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     </div>
                 </div>
 
@@ -54,7 +54,7 @@
                         密码
                     </label>
                     <div class="mt-1">
-                        <input id="password" name="password" type="password" autocomplete="new-password" required class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="请输入密码（至少 6 位）" class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     </div>
                 </div>
 
@@ -64,7 +64,7 @@
                     </button>
                 </div>
             </form>
-            <p class="text-center text-sm text-gray-600 pt-2">
+            <p class="text-center text-sm text-gray-600 mt-4">
                 已经有账户？
                 <a href="/web/login" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
                     立即登录
