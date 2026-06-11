@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_db_session
 from app.web.dependencies import get_current_user_from_cookie
 from app.web.routes.dashboard import router as dashboard_router
+from app.web import register_web_routes
 from app.models.base import Base
 from app.models.account import TelegramAccount
 from app.models.task import AutoReplyRule, ScheduledMessageTask
@@ -38,6 +39,18 @@ def clean_db():
     """每个测试前清空并重新创建表。"""
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
+
+def test_root_redirects_to_dashboard() -> None:
+    """测试访问 / 重定向到 /web/dashboard。"""
+    app = FastAPI()
+    register_web_routes(app)
+
+    client = TestClient(app)
+    resp = client.get("/", follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/web/dashboard"
 
 
 def test_dashboard_unauthenticated() -> None:
