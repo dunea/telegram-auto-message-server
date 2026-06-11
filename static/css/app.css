@@ -1,1 +1,36 @@
 /* Custom styles for Telegram Auto Message Server */
+
+/* 全局表单控件样式优化 */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="url"],
+input[type="tel"],
+input:not([type]) {
+  background-color: #f3f4f6;  /* gray-100 柔和灰 */
+  min-height: 2.5rem;         /* 40px */
+  padding: 0.5rem 1rem;       /* py-2 px-4 */
+}
+
+select,
+select[class] {
+  background-color: #e5e7eb;  /* gray-200 中灰 */
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+}
+
+textarea,
+textarea[class] {
+  background-color: #f3f4f6;
+  min-height: 5rem;
+  line-height: 1.5;
+  padding: 0.5rem;            /* p-2 四周 (8px) */
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background-color: #d1d5db; /* gray-300 禁用态 */
+}

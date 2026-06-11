@@ -1,17 +1,16 @@
 import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
 from app.models.account import TelegramAccount
 from app.models.message import TelegramMessage
+from app.web import templates
 from app.web.dependencies import get_current_user_from_cookie
 
 logger = logging.getLogger(__name__)
-templates = Jinja2Templates(directory="templates")
 
 router = APIRouter(prefix="/web", tags=["web-messages"])
 

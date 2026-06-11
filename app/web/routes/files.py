@@ -1,22 +1,17 @@
 import logging
-import os
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_file_service
 from app.models.file import FileRecord
 from app.service.file_service import FileService
+from app.web import templates
 from app.web.dependencies import get_current_user_from_cookie
 
 logger = logging.getLogger(__name__)
-templates = Jinja2Templates(directory="templates")
-
-# 添加 os.path.basename 到 Jinja2 模板过滤器中，方便获取文件名
-templates.env.filters["basename"] = lambda path: os.path.basename(path) if path else ""
 
 router = APIRouter(prefix="/web", tags=["web-files"])
 

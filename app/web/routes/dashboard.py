@@ -1,17 +1,16 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
+from app.web import templates
 from app.web.dependencies import get_current_user_from_cookie
 from app.models.account import TelegramAccount
 from app.models.task import AutoReplyRule, ScheduledMessageTask
 from app.models.message import TelegramMessage
 
-templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/web", tags=["web-dashboard"])
 
 @router.get("/dashboard", response_class=HTMLResponse)

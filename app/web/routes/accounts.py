@@ -1,17 +1,16 @@
 import logging
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_telegram_service
 from app.models.account import TelegramAccount, ProxyInfo
 from app.service.telegram_service import TelegramService
+from app.web import templates
 from app.web.dependencies import get_current_user_from_cookie
 
 logger = logging.getLogger(__name__)
-templates = Jinja2Templates(directory="templates")
 
 router = APIRouter(prefix="/web", tags=["web-accounts"])
 

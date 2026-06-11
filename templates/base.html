@@ -3,7 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Telegram 自动消息服务{% endblock %}</title>
+    <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <!-- SEO -->
+    <meta name="description" content="{{ site_description }}">
+    <meta name="keywords" content="{{ site_keywords }}">
+    <meta name="author" content="{{ site_name }}">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#4f46e5">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ site_name }} - {{ site_social_tagline }}">
+    <meta property="og:description" content="{{ site_description }}">
+    <meta property="og:site_name" content="{{ site_name }}">
+    <meta property="og:locale" content="zh_CN">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ site_name }} - {{ site_social_tagline }}">
+    <meta name="twitter:description" content="{{ site_description }}">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- HTMX CDN -->
@@ -23,7 +39,7 @@
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
-                            TG 自动消息服务
+                            {{ site_name }}
                         </span>
                     </div>
                     {% if user_id or current_user %}
@@ -86,7 +102,7 @@
     <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-400">
-            &copy; 2026 Telegram 自动消息服务. All rights reserved.
+            &copy; 2026 {{ site_name }}. All rights reserved.
         </div>
     </footer>
 

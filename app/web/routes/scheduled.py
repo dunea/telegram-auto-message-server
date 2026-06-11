@@ -2,7 +2,6 @@ import logging
 from typing import Any
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,10 +10,10 @@ from app.models.account import TelegramAccount
 from app.models.file import FileRecord
 from app.models.task import ScheduledMessageTask
 from app.service.task_service import TaskService
+from app.web import templates
 from app.web.dependencies import get_current_user_from_cookie
 
 logger = logging.getLogger(__name__)
-templates = Jinja2Templates(directory="templates")
 
 router = APIRouter(prefix="/web", tags=["web-scheduled"])
 

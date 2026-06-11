@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if rule %}编辑{% else %}创建{% endif %}自动回复规则 - TG 自动消息服务{% endblock %}
+{% block title %}{% if rule %}编辑{% else %}创建{% endif %}自动回复规则 - {{ site_name }}{% endblock %}
 {% block content %}
 <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <!-- Back Navigation -->
@@ -129,7 +129,7 @@
                                 <button type="button" onclick="this.parentElement.remove()" class="absolute top-2 right-2 text-red-500 text-sm hover:underline">删除</button>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">消息文本</label>
-                                    <textarea name="reply_messages_text" required class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2">{{ msg.text }}</textarea>
+                                    <textarea name="reply_messages_text" required placeholder="比如: 您好，请问有什么可以帮到您的吗？" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2">{{ msg.text }}</textarea>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>
@@ -200,7 +200,7 @@ function addMessageItem() {
         <button type="button" onclick="this.parentElement.remove()" class="absolute top-2 right-2 text-red-500 text-sm hover:underline">删除</button>
         <div>
             <label class="block text-sm font-medium text-gray-700">消息文本</label>
-            <textarea name="reply_messages_text" required class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2"></textarea>
+            <textarea name="reply_messages_text" required placeholder="比如: 您好，请问有什么可以帮到您的吗？" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2"></textarea>
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700">媒体文件附件 (可选)</label>

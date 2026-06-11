@@ -1,13 +1,12 @@
 import jwt
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app.api.deps import get_auth_service
 from app.config import get_settings
 from app.service.auth_service import AuthService
+from app.web import templates
 
-templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/web", tags=["web-auth"])
 
 
