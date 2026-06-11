@@ -34,8 +34,8 @@
 
                         <div>
                             <label for="proxy_id" class="block text-sm font-medium text-gray-700">网络代理 (可选)</label>
-                            <select name="proxy_id" id="proxy_id"
-                                    class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                             <select name="proxy_id" id="proxy_id"
+                                     class="mt-1 block w-full bg-white rounded-md border-gray-300 shadow-sm px-3 py-1.5 border focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                                 <option value="">直连 (不使用代理)</option>
                                 {% for proxy in proxies %}
                                 <option value="{{ proxy.id }}">{{ proxy.proxy_host }}:{{ proxy.proxy_port }}</option>
@@ -70,8 +70,8 @@
 
                         <div>
                             <label for="proxy_id_session" class="block text-sm font-medium text-gray-700">网络代理 (可选)</label>
-                            <select name="proxy_id" id="proxy_id_session"
-                                    class="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                             <select name="proxy_id" id="proxy_id_session"
+                                     class="mt-1 block w-full bg-white rounded-md border-gray-300 shadow-sm px-3 py-1.5 border focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                                 <option value="">直连 (不使用代理)</option>
                                 {% for proxy in proxies %}
                                 <option value="{{ proxy.id }}">{{ proxy.proxy_host }}:{{ proxy.proxy_port }}</option>
