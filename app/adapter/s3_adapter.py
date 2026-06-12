@@ -50,7 +50,7 @@ class S3Adapter:
         path = Path(local_path)
         if not path.exists() or not path.is_file():
             raise ValueError("上传文件不存在")
-        async with self._session.client("s3", **self._client_kwargs()) as client:
+        async with self._session.client("s3", **self._client_kwargs()) as client:  # type: ignore
             with path.open("rb") as fp:
                 await client.upload_fileobj(fp, self._settings.s3_bucket_name, key)
         return self._build_url(key, self._settings)
@@ -61,7 +61,7 @@ class S3Adapter:
             return False
         target = Path(local_path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        async with self._session.client("s3", **self._client_kwargs()) as client:
+        async with self._session.client("s3", **self._client_kwargs()) as client:  # type: ignore
             with target.open("wb") as fp:
                 await client.download_fileobj(self._settings.s3_bucket_name, key, fp)
         return True
@@ -70,6 +70,6 @@ class S3Adapter:
         """删除 S3 对象。"""
         if not self._enabled():
             return False
-        async with self._session.client("s3", **self._client_kwargs()) as client:
+        async with self._session.client("s3", **self._client_kwargs()) as client:  # type: ignore
             await client.delete_object(Bucket=self._settings.s3_bucket_name, Key=key)
         return True

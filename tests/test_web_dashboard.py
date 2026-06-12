@@ -1,6 +1,6 @@
 """仪表盘页面与路由单元测试。"""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.testclient import TestClient
@@ -140,7 +140,7 @@ def test_dashboard_authenticated_with_data() -> None:
     db.add_all([task1, task2])
     
     # 4. 注入消息（24小时出站消息），指定 id
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     # 24h内：成功出站、失败出站、排队出站、入站消息
     msg_sent = TelegramMessage(id=1, account_id=1, conversation_peer="peer1", direction="out", status="sent", created_at=now - timedelta(hours=1))
     msg_failed = TelegramMessage(id=2, account_id=1, conversation_peer="peer2", direction="out", status="failed", created_at=now - timedelta(hours=2))

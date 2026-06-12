@@ -27,9 +27,9 @@ async def list_files(
     files = (await db_session.scalars(stmt))
 
     return templates.TemplateResponse(
+        request,
         "files/list.html",
         {
-            "request": request,
             "user_id": user_id,
             "files": files,
         },

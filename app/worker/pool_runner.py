@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from time import perf_counter
 
@@ -58,7 +58,7 @@ class PoolRunner:
 
     def _log_event(self, event: str, level: str = "INFO", **fields: object) -> None:
         payload = {
-            "ts": datetime.utcnow().isoformat(),
+            "ts": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
             "level": level,
             "pool_instance_id": self._settings.pool_instance_id,
             "event": event,
@@ -370,7 +370,7 @@ class PoolRunner:
                     account_id=account_id,
                     conversation_id=sender_id or None,
                     conversation_peer=conversation_peer,
-                    grouped_id=int(getattr(message, "grouped_id", None)) if getattr(message, "grouped_id", None) is not None else None,
+                    grouped_id=int(g_id) if (g_id := getattr(message, "grouped_id", None)) is not None else None,
                     group_index=0,
                     peer_type=peer_type,
                     peer_id=peer_id,
@@ -390,7 +390,7 @@ class PoolRunner:
                     task_execution_log_id=None,
                     error_message=None,
                     sent_at=None,
-                    message_at=message_at or datetime.utcnow(),
+                    message_at=message_at or datetime.now(timezone.utc).replace(tzinfo=None),
                 )
                 await message_repository.Save(message_record)
                 await session.commit()

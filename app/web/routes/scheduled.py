@@ -55,8 +55,7 @@ async def list_scheduled_tasks(
             for t in tasks
         ]
         
-    return templates.TemplateResponse("scheduled/list.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "scheduled/list.html", {
         "user_id": user_id,
         "tasks": tasks_list,
         "accounts": accounts,
@@ -74,8 +73,7 @@ async def new_scheduled_page(
     accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
     files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
 
-    return templates.TemplateResponse("scheduled/form.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "scheduled/form.html", {
         "user_id": user_id,
         "accounts": accounts,
         "files": files,
@@ -180,8 +178,7 @@ async def edit_scheduled_page(
                 
     conv_ids_str = ",".join(map(str, task["conversation_ids"] or [])) if task.get("conversation_ids") else ""
     
-    return templates.TemplateResponse("scheduled/form.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "scheduled/form.html", {
         "user_id": user_id,
         "accounts": accounts,
         "files": files,

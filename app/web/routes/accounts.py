@@ -23,8 +23,7 @@ async def list_accounts(
 ):
     accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
     proxies = {p.id: p for p in (await db_session.scalars(select(ProxyInfo)))}
-    return templates.TemplateResponse("accounts/list.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "accounts/list.html", {
         "user_id": user_id,
         "accounts": accounts,
         "proxies": proxies
@@ -38,8 +37,7 @@ async def new_account_page(
     db_session: AsyncSession = Depends(get_db_session)
 ):
     proxies = await db_session.scalars(select(ProxyInfo).where(ProxyInfo.is_active == True))
-    return templates.TemplateResponse("accounts/login_flow.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "accounts/login_flow.html", {
         "user_id": user_id,
         "proxies": proxies
     })
@@ -203,8 +201,7 @@ async def get_account_detail(
             logger.exception("Failed to load conversations")
             error_msg = f"会话加载失败: {str(e)}"
             
-    return templates.TemplateResponse("accounts/detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "accounts/detail.html", {
         "user_id": user_id,
         "account": account,
         "proxy": proxy,
@@ -219,7 +216,6 @@ async def toggle_active(
     db_session: AsyncSession = Depends(get_db_session),
     user_id: int = Depends(get_current_user_from_cookie),
 ):
-    # TODO PR #11: 改为 async def + AsyncSession 统一处理
     account = await db_session.get(TelegramAccount, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")

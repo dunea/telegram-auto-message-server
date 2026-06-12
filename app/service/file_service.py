@@ -80,7 +80,7 @@ class FileService:
             local_path.unlink(missing_ok=True)
             raise ValueError("文件大小超出本地暂存上限")
 
-        expires_at = datetime.utcnow() + timedelta(hours=int(self._settings.local_temp_retention_hours))
+        expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=int(self._settings.local_temp_retention_hours))
         file_record = FileRecord(
             local_path=str(local_path),
             s3_key=None,
@@ -92,7 +92,7 @@ class FileService:
         await self._file_record_repository.Save(file_record)
         await self._session.flush()
 
-        object_key = f"uploads/{datetime.utcnow().strftime('%Y%m%d')}/{file_token}_{safe_name}"
+        object_key = f"uploads/{datetime.now(timezone.utc).replace(tzinfo=None).strftime('%Y%m%d')}/{file_token}_{safe_name}"
         s3_url = ""
         try:
             s3_url = await self._s3_adapter.UploadFile(

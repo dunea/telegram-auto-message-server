@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -73,7 +73,7 @@ async def test_pool_runner_auto_reply_flow() -> None:
                 "message_id": 99999,
                 "target_identifier": "22222",
                 "content": "world",
-                "date": datetime.utcnow().isoformat(),
+                "date": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                 "peer_type": "user",
                 "peer_id": 22222,
                 "sender_id": 11111,
@@ -90,7 +90,7 @@ async def test_pool_runner_auto_reply_flow() -> None:
         fake_message.message = "  hello there  "
         fake_message.peer_id = fake_peer
         fake_message.sender_id = 22222
-        fake_message.date = datetime.utcnow()
+        fake_message.date = datetime.now(timezone.utc).replace(tzinfo=None)
         fake_message.reply_to = None
         fake_message.grouped_id = None
 

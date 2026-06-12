@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select, func
@@ -38,7 +38,7 @@ async def dashboard(
     active_tasks = await db_session.scalar(select(func.count(ScheduledMessageTask.id)).where(ScheduledMessageTask.is_active == True)) or 0
 
     # 统计24小时出站消息
-    last_24h = datetime.utcnow() - timedelta(hours=24)
+    last_24h = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
     out_msg_stmt = select(func.count(TelegramMessage.id)).where(
         TelegramMessage.direction == "out",
         TelegramMessage.created_at >= last_24h,
@@ -47,8 +47,7 @@ async def dashboard(
     failed_24h = await db_session.scalar(out_msg_stmt.where(TelegramMessage.status == "failed")) or 0
     pending_24h = await db_session.scalar(out_msg_stmt.where(TelegramMessage.status == "pending")) or 0
 
-    return templates.TemplateResponse("dashboard/index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard/index.html", {
         "user_id": user_id,
         "accounts": {"total": total_accounts, "active": active_accounts, "online": online_accounts},
         "rules": {"total": total_rules, "active": active_rules},

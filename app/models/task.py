@@ -1,10 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, DateTime, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
 from app.models.enums import TaskExecutionStatus
+
+if TYPE_CHECKING:
+    from app.models.reply_message import ReplyMessage
 
 
 class ScheduledMessageTask(Base, TimestampMixin):

@@ -126,13 +126,23 @@ def create_api_application(settings: Settings) -> FastAPI:
     from app.web import register_web_routes
 
     os.makedirs("static/css", exist_ok=True)
+
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    register_global_exception_handlers(app)
+    app.include_router(build_api_router())
+
+    import os
+    from fastapi.staticfiles import StaticFiles
+    from app.web import register_web_routes
+
+    os.makedirs("static/css", exist_ok=True)
     app.mount("/static", StaticFiles(directory="static"), name="static")
     register_web_routes(app)
 
     return app
 
 
-async def run_pool_mode(settings: Settings) -> NoReturn:
+async def run_pool_mode(settings: Settings) -> None:
     """启动号池模式。
 
     号池模式不暴露业务 HTTP 接口，专注执行账号巡检、会话同步与消息发送。
@@ -141,5 +151,5 @@ async def run_pool_mode(settings: Settings) -> NoReturn:
     await runner.run_forever()
 
 
-def run_pool_mode_blocking(settings: Settings) -> NoReturn:
+def run_pool_mode_blocking(settings: Settings) -> None:
     asyncio.run(run_pool_mode(settings))

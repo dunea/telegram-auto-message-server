@@ -479,6 +479,8 @@ def test_readiness_returns_503_when_database_unavailable() -> None:
 
     app = FastAPI()
     app.include_router(build_api_router())
+    app.dependency_overrides[get_db_session] = lambda: BrokenDbSession()
+    app.dependency_overrides[get_task_scheduler] = lambda: FakeScheduler(running=True, job_count=0)
     client = TestClient(app)
 
     readiness_resp = client.get("/api/v1/health/readiness")
@@ -495,6 +497,8 @@ def test_readiness_returns_503_when_scheduler_not_running() -> None:
 
     app = FastAPI()
     app.include_router(build_api_router())
+    app.dependency_overrides[get_db_session] = lambda: HealthyDbSession()
+    app.dependency_overrides[get_task_scheduler] = lambda: FakeScheduler(running=False, job_count=0)
     client = TestClient(app)
 
     readiness_resp = client.get("/api/v1/health/readiness")

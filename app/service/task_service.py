@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import random
 from typing import Any
@@ -78,7 +78,7 @@ class TaskService:
 
     def _log_task_event(self, event: str, level: str = "INFO", **fields: object) -> None:
         payload = {
-            "ts": datetime.utcnow().isoformat(),
+            "ts": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
             "level": level,
             "event": event,
             "shard_index": int(self._settings.pool_shard_index),
@@ -220,7 +220,7 @@ class TaskService:
             message_content_id=message_content_id,
             send_log_id=None,
             status=TaskExecutionStatus.RUNNING,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc).replace(tzinfo=None),
             finished_at=None,
             duration_ms=0,
             target_identifier=target_identifier,
@@ -503,7 +503,7 @@ class TaskService:
             send_result = await telegram_service.SendMessage(
                 account_id=int(task.account_id),
                 target_identifier=target_identifier,
-                content=task.message_template,
+                content=task.message_template or "",
                 content_type=(task.message_content_id and MessageContentType.TEXT) or MessageContentType.TEXT,
                 message_content_id=message_content_id,
                 media_items=None,
@@ -512,8 +512,11 @@ class TaskService:
             )
             execution_log.send_log_id = send_result.get("send_log_id")
             execution_log.status = TaskExecutionStatus.SUCCESS if send_result.get("status") == "sent" else TaskExecutionStatus.FAILED
-            execution_log.finished_at = datetime.utcnow()
-            execution_log.duration_ms = int((execution_log.finished_at - execution_log.started_at).total_seconds() * 1000)
+            execution_log.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            finished = execution_log.finished_at
+            started = execution_log.started_at or finished
+            if finished and started:
+                execution_log.duration_ms = int((finished - started).total_seconds() * 1000)
             execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
             await session.commit()
 
@@ -599,8 +602,11 @@ class TaskService:
             )
             execution_log.send_log_id = send_result.get("send_log_id")
             execution_log.status = TaskExecutionStatus.SUCCESS if send_result.get("status") == "sent" else TaskExecutionStatus.FAILED
-            execution_log.finished_at = datetime.utcnow()
-            execution_log.duration_ms = int((execution_log.finished_at - execution_log.started_at).total_seconds() * 1000)
+            execution_log.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            finished = execution_log.finished_at
+            started = execution_log.started_at or finished
+            if finished and started:
+                execution_log.duration_ms = int((finished - started).total_seconds() * 1000)
             execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
             await session.commit()
 

@@ -35,8 +35,7 @@ async def list_auto_reply_rules(
     # 获取过滤后的规则列表
     rules_data = await auto_reply_service.ListRules(account_id=actual_account_id, limit=100, offset=0)
     
-    return templates.TemplateResponse("auto_reply/list.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "auto_reply/list.html", {
         "user_id": user_id,
         "rules": rules_data["items"],
         "accounts": accounts,
@@ -54,8 +53,7 @@ async def new_rule_page(
     accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
     files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
 
-    return templates.TemplateResponse("auto_reply/form.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "auto_reply/form.html", {
         "user_id": user_id,
         "accounts": accounts,
         "files": files,
@@ -140,8 +138,7 @@ async def edit_rule_page(
     keywords_str = ",".join(rule["keywords"] or []) if rule["keywords"] else ""
     conv_ids_str = ",".join(map(str, rule["conversation_ids"] or [])) if rule["conversation_ids"] else ""
     
-    return templates.TemplateResponse("auto_reply/form.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "auto_reply/form.html", {
         "user_id": user_id,
         "accounts": accounts,
         "files": files,

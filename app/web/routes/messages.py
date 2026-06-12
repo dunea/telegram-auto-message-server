@@ -47,9 +47,9 @@ async def list_messages(
     messages = (await db_session.scalars(stmt))
 
     return templates.TemplateResponse(
+        request,
         "messages/list.html",
         {
-            "request": request,
             "user_id": user_id,
             "messages": messages,
             "accounts": accounts,

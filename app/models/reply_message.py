@@ -1,7 +1,13 @@
 from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from typing import TYPE_CHECKING
+
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.task import AutoReplyRule
+    from app.models.reply_message_media import ReplyMessageMedia
 
 
 class ReplyMessage(Base, TimestampMixin):

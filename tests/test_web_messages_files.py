@@ -3,7 +3,7 @@
 import io
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI, Depends
@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, event
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
+
+from typing import Any
 
 from app.api.deps import get_db_session, get_file_service
 from app.models.base import Base
@@ -39,7 +41,7 @@ def set_id_if_null(mapper, connection, target):
 class _FakeAsyncSession:
     """把 sync Session 包装为 async 兼容（PR #11 收尾后 web 测试用）。
 
-    AsyncSession API 中只有部分方法是 async def（flush/scalar/scalars/get/execute/commit/refresh/delete），
+    AsyncSession API 中只有部分方法 store async def（flush/scalar/scalars/get/execute/commit/refresh/delete），
     其余（add/add_all/expire/expire_all）是 sync。包装时区分。
     """
     def __init__(self, db):
@@ -85,7 +87,7 @@ def clean_db():
     Base.metadata.create_all(bind=engine)
 
 
-def get_testing_file_service(db: Session = Depends(get_testing_db)):
+def get_testing_file_service(db: Any = Depends(get_testing_db)):
     from app.service.file_service import FileService
     from app.config import get_settings
     from app.repository.file_repository import SqlAlchemyFileRecordRepository
@@ -163,7 +165,7 @@ def test_list_messages_web(override_auth) -> None:
         content_type="text",
         text_content="Hello out",
         status="sent",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     msg2 = TelegramMessage(
         account_id=acc.id,
@@ -172,7 +174,7 @@ def test_list_messages_web(override_auth) -> None:
         content_type="text",
         text_content="Hello in",
         status="sent",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db_session.add_all([msg1, msg2])
     db_session.commit()

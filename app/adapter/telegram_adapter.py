@@ -1,8 +1,8 @@
 import importlib
 import asyncio
 import json
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Callable, Coroutine
 
 from app.config import Settings
 
@@ -18,11 +18,11 @@ class TelegramAdapter:
         self._client_cache: dict[int, dict[str, Any]] = {}
         self._cache_recycled_count = 0
         self._cache_calls_count = 0
-        self.new_message_callback = None
+        self.new_message_callback: Callable[[int, Any], Coroutine[Any, Any, None]] | None = None
 
     def _log_cache_event(self, event: str, **fields: object) -> None:
         payload = {
-            "ts": datetime.utcnow().isoformat(),
+            "ts": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
             "level": "INFO",
             "component": "telegram_adapter",
             "event": event,
@@ -74,7 +74,7 @@ class TelegramAdapter:
             await self._drop_client(account_id)
             return
 
-        idle_seconds = (datetime.utcnow() - last_used_at).total_seconds()
+        idle_seconds = (datetime.now(timezone.utc).replace(tzinfo=None) - last_used_at).total_seconds()
         if idle_seconds >= self._settings.pool_client_idle_ttl_seconds:
             await self._drop_client(account_id)
 
@@ -89,7 +89,7 @@ class TelegramAdapter:
         cached = self._client_cache.get(account_id)
         if not cached:
             return
-        cached["last_used_at"] = datetime.utcnow()
+        cached["last_used_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
         cached["failed_count"] = 0
 
     def _mark_client_failed(self, account_id: int) -> None:
@@ -97,7 +97,7 @@ class TelegramAdapter:
         if not cached:
             return
         cached["failed_count"] = int(cached.get("failed_count") or 0) + 1
-        cached["last_used_at"] = datetime.utcnow()
+        cached["last_used_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
 
     def _build_client(self, session_string: str) -> Any:
         telethon_module = importlib.import_module("telethon")
@@ -128,17 +128,18 @@ class TelegramAdapter:
             client = self._build_client(session_string=session_string)
             cached = {
                 "client": client,
-                "last_used_at": datetime.utcnow(),
+                "last_used_at": datetime.now(timezone.utc).replace(tzinfo=None),
                 "failed_count": 0,
             }
             self._client_cache[account_id] = cached
 
-            if self.new_message_callback:
+            callback = self.new_message_callback
+            if callback is not None:
                 telethon_events = importlib.import_module("telethon.events")
 
                 async def _message_handler(event: Any) -> None:
                     try:
-                        await self.new_message_callback(account_id, event)
+                        await callback(account_id, event)
                     except Exception as e:
                         print(f"Error in new_message_callback for account {account_id}: {e}")
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -315,13 +315,13 @@ class TelegramService:
     async def EnsureAccountOnline(self, account_id: int) -> dict[str, Any]:
         account = await self._get_account_or_raise(account_id)
         is_authorized = await self._telegram_adapter.IsAuthorized(
-            account_id=int(account.id),
-            session_string=account.session_string,
+            account_id=int(account.id or 0),
+            session_string=account.session_string or "",
         )
         account.is_online = bool(is_authorized)
         await self._session.commit()
         return {
-            "account_id": int(account.id),
+            "account_id": int(account.id or 0),
             "is_online": bool(account.is_online),
             "is_active": bool(account.is_active),
         }
@@ -329,16 +329,16 @@ class TelegramService:
     async def ListConversations(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
         account = await self._get_account_or_raise(account_id)
         return await self._telegram_adapter.ListDialogs(
-            account_id=int(account.id),
-            session_string=account.session_string,
+            account_id=int(account.id or 0),
+            session_string=account.session_string or "",
             limit=limit,
         )
 
     async def ListMessages(self, account_id: int, target_identifier: str, limit: int = 50) -> list[dict[str, Any]]:
         account = await self._get_account_or_raise(account_id)
         messages = await self._telegram_adapter.ListMessages(
-            account_id=int(account.id),
-            session_string=account.session_string,
+            account_id=int(account.id or 0),
+            session_string=account.session_string or "",
             target_identifier=target_identifier,
             limit=limit,
         )
@@ -371,13 +371,13 @@ class TelegramService:
             message_record = TelegramMessage(
                 message_content_id=None,
                 source_type=MessageSourceType.MANUAL,
-                account_id=int(account.id),
+                account_id=int(account.id or 0),
                 conversation_id=sender_id or None,
                 conversation_peer=target_identifier,
-                grouped_id=int(item.get("grouped_id")) if item.get("grouped_id") is not None else None,
+                grouped_id=int(g_id) if (g_id := item.get("grouped_id")) is not None else None,
                 group_index=0,
                 peer_type=self._normalize_peer_type(item.get("peer_type")),
-                peer_id=int(item.get("peer_id")) if item.get("peer_id") is not None else None,
+                peer_id=int(p_id) if (p_id := item.get("peer_id")) is not None else None,
                 sender_telegram_user_id=sender_id or None,
                 direction=direction,
                 content_type=MessageContentType.TEXT,
@@ -389,13 +389,13 @@ class TelegramService:
                 status=MessageSendStatus.SENT,
                 telegram_message_id=telegram_message_id,
                 reply_to_telegram_message_id=(
-                    int(item.get("reply_to_message_id"))
-                    if item.get("reply_to_message_id") is not None
+                    int(r_id)
+                    if (r_id := item.get("reply_to_message_id")) is not None
                     else None
                 ),
                 forward_from_telegram_user_id=(
-                    int(item.get("forward_from_user_id"))
-                    if item.get("forward_from_user_id") is not None
+                    int(f_id)
+                    if (f_id := item.get("forward_from_user_id")) is not None
                     else None
                 ),
                 source_message_id=None,
@@ -503,7 +503,7 @@ class TelegramService:
             status=MessageAttemptStatus.SENDING,
             telegram_message_id_value=None,
             error_message=None,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc).replace(tzinfo=None),
             finished_at=None,
             duration_ms=0,
         )
@@ -600,7 +600,7 @@ class TelegramService:
             task_execution_log_id=task_execution_log_id,
             error_message=None,
             sent_at=None,
-            message_at=datetime.utcnow(),
+            message_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         await self._message_repository.Save(message_record)
         await self._session.flush()
@@ -637,27 +637,27 @@ class TelegramService:
                     if sent_id > 0:
                         sent_ids.append(sent_id)
 
-                    if sent_result.get("grouped_id") is not None:
-                        message_record.grouped_id = int(sent_result.get("grouped_id"))
+                    if (g_id := sent_result.get("grouped_id")) is not None:
+                        message_record.grouped_id = int(g_id)
                     message_record.peer_type = self._normalize_peer_type(sent_result.get("peer_type"))
                     message_record.peer_id = (
-                        int(sent_result.get("peer_id"))
-                        if sent_result.get("peer_id") is not None
+                        int(p_id)
+                        if (p_id := sent_result.get("peer_id")) is not None
                         else message_record.peer_id
                     )
                     message_record.reply_to_telegram_message_id = (
-                        int(sent_result.get("reply_to_message_id"))
-                        if sent_result.get("reply_to_message_id") is not None
+                        int(r_id)
+                        if (r_id := sent_result.get("reply_to_message_id")) is not None
                         else message_record.reply_to_telegram_message_id
                     )
                     message_record.sender_telegram_user_id = (
-                        int(sent_result.get("sender_id"))
-                        if sent_result.get("sender_id") is not None
+                        int(s_id)
+                        if (s_id := sent_result.get("sender_id")) is not None
                         else message_record.sender_telegram_user_id
                     )
 
                     message_media = TelegramMessageMedia(
-                        telegram_message_id=int(message_record.id),
+                        telegram_message_id=int(message_record.id or 0),
                         grouped_id=message_record.grouped_id,
                         media_type=media_item.media_type,
                         media_url=media_item.media_url,
@@ -677,15 +677,18 @@ class TelegramService:
                     attempt.telegram_message_id_value = None
                     attempt.error_message = failure_error
 
-                attempt.finished_at = datetime.utcnow()
-                attempt.duration_ms = int((attempt.finished_at - (attempt.started_at or attempt.finished_at)).total_seconds() * 1000)
+                attempt.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                finished = attempt.finished_at
+                started = attempt.started_at or finished
+                if finished and started:
+                    attempt.duration_ms = int((finished - started).total_seconds() * 1000)
                 if failure_error:
                     break
         else:
-            attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=1)
+            attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id or 0), attempt_no=1)
             try:
                 sent_result = await self._telegram_adapter.SendMessage(
-                    account_id=int(account.id),
+                    account_id=int(account.id or 0),
                     session_string=account.session_string or "",
                     target_identifier=target_identifier,
                     content=send_text,
@@ -693,22 +696,22 @@ class TelegramService:
                 sent_id = int(sent_result.get("message_id") or 0)
                 if sent_id > 0:
                     sent_ids.append(sent_id)
-                if sent_result.get("grouped_id") is not None:
-                    message_record.grouped_id = int(sent_result.get("grouped_id"))
+                if (g_id := sent_result.get("grouped_id")) is not None:
+                    message_record.grouped_id = int(g_id)
                 message_record.peer_type = self._normalize_peer_type(sent_result.get("peer_type"))
                 message_record.peer_id = (
-                    int(sent_result.get("peer_id"))
-                    if sent_result.get("peer_id") is not None
+                    int(p_id)
+                    if (p_id := sent_result.get("peer_id")) is not None
                     else message_record.peer_id
                 )
                 message_record.reply_to_telegram_message_id = (
-                    int(sent_result.get("reply_to_message_id"))
-                    if sent_result.get("reply_to_message_id") is not None
+                    int(r_id)
+                    if (r_id := sent_result.get("reply_to_message_id")) is not None
                     else message_record.reply_to_telegram_message_id
                 )
                 message_record.sender_telegram_user_id = (
-                    int(sent_result.get("sender_id"))
-                    if sent_result.get("sender_id") is not None
+                    int(s_id)
+                    if (s_id := sent_result.get("sender_id")) is not None
                     else message_record.sender_telegram_user_id
                 )
                 attempt.status = MessageAttemptStatus.SENT
@@ -720,21 +723,24 @@ class TelegramService:
                 attempt.telegram_message_id_value = None
                 attempt.error_message = failure_error
 
-            attempt.finished_at = datetime.utcnow()
-            attempt.duration_ms = int((attempt.finished_at - (attempt.started_at or attempt.finished_at)).total_seconds() * 1000)
+            attempt.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            finished = attempt.finished_at
+            started = attempt.started_at or finished
+            if finished and started:
+                attempt.duration_ms = int((finished - started).total_seconds() * 1000)
 
         if failure_error:
             message_record.status = MessageSendStatus.FAILED
             message_record.error_message = failure_error
             message_record.telegram_message_id = sent_ids[0] if sent_ids else None
-            message_record.sent_at = datetime.utcnow() if sent_ids else None
+            message_record.sent_at = datetime.now(timezone.utc).replace(tzinfo=None) if sent_ids else None
         else:
             message_record.status = MessageSendStatus.SENT
             message_record.error_message = None
             message_record.telegram_message_id = sent_ids[0] if sent_ids else None
-            message_record.sent_at = datetime.utcnow()
+            message_record.sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        message_record.message_at = datetime.utcnow()
+        message_record.message_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self._session.commit()
 
         return {

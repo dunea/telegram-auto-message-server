@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import ProxyInfo
 from app.repository.base_repository import BaseRepository
@@ -9,14 +9,15 @@ from app.repository.base_repository import BaseRepository
 
 class ProxyInfoRepository(ABC):
     @abstractmethod
-    def FindAllByIsActive(self, is_active: bool) -> list[ProxyInfo]:
+    async def FindAllByIsActive(self, is_active: bool) -> list[ProxyInfo]:
         raise NotImplementedError
 
 
 class SqlAlchemyProxyInfoRepository(BaseRepository[ProxyInfo], ProxyInfoRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         super().__init__(session=session, model_type=ProxyInfo)
 
-    def FindAllByIsActive(self, is_active: bool) -> list[ProxyInfo]:
+    async def FindAllByIsActive(self, is_active: bool) -> list[ProxyInfo]:
         stmt = select(ProxyInfo).where(ProxyInfo.is_active == is_active)
-        return list(self._session.scalars(stmt).all())
+        result = await self._session.scalars(stmt)
+        return list(result.all())
