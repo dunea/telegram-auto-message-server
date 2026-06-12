@@ -1,72 +1,36 @@
 from abc import ABC, abstractmethod
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import AutoReplyRule, RuleMessageTask, ScheduledMessageTask, TaskExecutionLog
 from app.repository.base_repository import BaseRepository
 
 
-class ScheduledMessageTaskRepository(ABC):
-    @abstractmethod
-    def FindById(self, task_id: int) -> ScheduledMessageTask | None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def FindAllByIsActive(self, is_active: bool) -> list[ScheduledMessageTask]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[ScheduledMessageTask]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def CountByAccountId(self, account_id: int) -> int:
-        raise NotImplementedError
-
-    @abstractmethod
-    def UpdateById(
-        self, task_id: int, cron_expr: str, target_identifier: str, message_template: str,
-        scope_mode: str | None = None,
-        conversation_ids: list[int] | None = None,
-        message_ids: list[int] | None = None,
-    ) -> ScheduledMessageTask | None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def UpdateIsActiveById(self, task_id: int, is_active: bool) -> bool:
-        raise NotImplementedError
-
-
-class RuleMessageTaskRepository(ABC):
-    @abstractmethod
-    def FindById(self, task_id: int) -> RuleMessageTask | None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def FindAllByIsActive(self, is_active: bool) -> list[RuleMessageTask]:
-        raise NotImplementedError
-
-
 class AutoReplyRuleRepository(ABC):
+    """自动回复规则仓储接口（异步版本，PR #6 引入）。
+
+    与 ``AutoReplyRuleRepository`` 并存到 PR #11 收尾。
+    """
+
     @abstractmethod
-    def FindById(self, rule_id: int) -> AutoReplyRule | None:
+    async def FindById(self, rule_id: int) -> AutoReplyRule | None:
         raise NotImplementedError
 
     @abstractmethod
-    def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[AutoReplyRule]:
+    async def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[AutoReplyRule]:
         raise NotImplementedError
 
     @abstractmethod
-    def CountByAccountId(self, account_id: int) -> int:
+    async def CountByAccountId(self, account_id: int) -> int:
         raise NotImplementedError
 
     @abstractmethod
-    def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
+    async def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
         raise NotImplementedError
 
     @abstractmethod
-    def UpdateById(
+    async def UpdateById(
         self,
         rule_id: int,
         trigger_keyword: str | None = None,
@@ -79,94 +43,74 @@ class AutoReplyRuleRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def UpdateIsActiveById(self, rule_id: int, is_active: bool) -> bool:
+    async def UpdateIsActiveById(self, rule_id: int, is_active: bool) -> bool:
         raise NotImplementedError
 
 
-class TaskExecutionLogRepository(ABC):
+class ScheduledMessageTaskRepository(ABC):
+    """定时任务仓储接口（异步版本，PR #8 引入）。
+
+    与 ``ScheduledMessageTaskRepository`` 并存到 PR #11 收尾。
+    """
+
     @abstractmethod
-    def FindById(self, log_id: int) -> TaskExecutionLog | None:
+    async def FindById(self, task_id: int) -> ScheduledMessageTask | None:
         raise NotImplementedError
 
+    @abstractmethod
+    async def FindAllByIsActive(self, is_active: bool) -> list[ScheduledMessageTask]:
+        raise NotImplementedError
 
-class SqlAlchemyScheduledMessageTaskRepository(BaseRepository[ScheduledMessageTask], ScheduledMessageTaskRepository):
-    def __init__(self, session: Session) -> None:
-        super().__init__(session=session, model_type=ScheduledMessageTask)
+    @abstractmethod
+    async def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[ScheduledMessageTask]:
+        raise NotImplementedError
 
-    def FindById(self, task_id: int) -> ScheduledMessageTask | None:
-        stmt = select(ScheduledMessageTask).where(ScheduledMessageTask.id == task_id)
-        return self._session.scalar(stmt)
+    @abstractmethod
+    async def CountByAccountId(self, account_id: int) -> int:
+        raise NotImplementedError
 
-    def FindAllByIsActive(self, is_active: bool) -> list[ScheduledMessageTask]:
-        stmt = select(ScheduledMessageTask).where(ScheduledMessageTask.is_active == is_active)
-        return list(self._session.scalars(stmt).all())
-
-    def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[ScheduledMessageTask]:
-        stmt = (
-            select(ScheduledMessageTask)
-            .where(ScheduledMessageTask.account_id == account_id)
-            .order_by(ScheduledMessageTask.id.desc())
-            .offset(offset)
-            .limit(limit)
-        )
-        return list(self._session.scalars(stmt).all())
-
-    def CountByAccountId(self, account_id: int) -> int:
-        stmt = select(func.count(ScheduledMessageTask.id)).where(ScheduledMessageTask.account_id == account_id)
-        return int(self._session.scalar(stmt) or 0)
-
-    def UpdateById(
+    @abstractmethod
+    async def UpdateById(
         self, task_id: int, cron_expr: str, target_identifier: str, message_template: str,
         scope_mode: str | None = None,
         conversation_ids: list[int] | None = None,
         message_ids: list[int] | None = None,
     ) -> ScheduledMessageTask | None:
-        task = self.FindById(task_id)
-        if task is None:
-            return None
-        task.cron_expr = cron_expr
-        task.target_identifier = target_identifier
-        task.message_template = message_template
-        if scope_mode is not None:
-            task.scope_mode = scope_mode
-        if conversation_ids is not None:
-            task.conversation_ids = conversation_ids
-        if message_ids is not None:
-            task.message_ids = message_ids
-        self._session.flush()
-        return task
+        raise NotImplementedError
 
-    def UpdateIsActiveById(self, task_id: int, is_active: bool) -> bool:
-        task = self.FindById(task_id)
-        if task is None:
-            return False
-        task.is_active = is_active
-        self._session.flush()
-        return True
+    @abstractmethod
+    async def UpdateIsActiveById(self, task_id: int, is_active: bool) -> bool:
+        raise NotImplementedError
 
 
-class SqlAlchemyRuleMessageTaskRepository(BaseRepository[RuleMessageTask], RuleMessageTaskRepository):
-    def __init__(self, session: Session) -> None:
-        super().__init__(session=session, model_type=RuleMessageTask)
+class RuleMessageTaskRepository(ABC):
+    """规则任务仓储接口（异步版本，PR #8 引入）。"""
 
-    def FindById(self, task_id: int) -> RuleMessageTask | None:
-        stmt = select(RuleMessageTask).where(RuleMessageTask.id == task_id)
-        return self._session.scalar(stmt)
+    @abstractmethod
+    async def FindById(self, task_id: int) -> RuleMessageTask | None:
+        raise NotImplementedError
 
-    def FindAllByIsActive(self, is_active: bool) -> list[RuleMessageTask]:
-        stmt = select(RuleMessageTask).where(RuleMessageTask.is_active == is_active)
-        return list(self._session.scalars(stmt).all())
+    @abstractmethod
+    async def FindAllByIsActive(self, is_active: bool) -> list[RuleMessageTask]:
+        raise NotImplementedError
+
+
+class TaskExecutionLogRepository(ABC):
+    """任务执行日志仓储接口（异步版本，PR #8 引入）。"""
+
+    @abstractmethod
+    async def FindById(self, log_id: int) -> TaskExecutionLog | None:
+        raise NotImplementedError
 
 
 class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReplyRuleRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         super().__init__(session=session, model_type=AutoReplyRule)
 
-    def FindById(self, rule_id: int) -> AutoReplyRule | None:
-        stmt = select(AutoReplyRule).where(AutoReplyRule.id == rule_id)
-        return self._session.scalar(stmt)
+    async def FindById(self, rule_id: int) -> AutoReplyRule | None:
+        return await self._session.get(AutoReplyRule, rule_id)
 
-    def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[AutoReplyRule]:
+    async def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[AutoReplyRule]:
         stmt = (
             select(AutoReplyRule)
             .where(AutoReplyRule.account_id == account_id)
@@ -174,20 +118,20 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
             .offset(offset)
             .limit(limit)
         )
-        return list(self._session.scalars(stmt).all())
+        return list((await self._session.scalars(stmt)).all())
 
-    def CountByAccountId(self, account_id: int) -> int:
+    async def CountByAccountId(self, account_id: int) -> int:
         stmt = select(func.count(AutoReplyRule.id)).where(AutoReplyRule.account_id == account_id)
-        return int(self._session.scalar(stmt) or 0)
+        return int((await self._session.scalar(stmt)) or 0)
 
-    def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
+    async def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
         stmt = select(AutoReplyRule).where(
             AutoReplyRule.account_id == account_id,
             AutoReplyRule.is_active == is_active,
         )
-        return list(self._session.scalars(stmt).all())
+        return list((await self._session.scalars(stmt)).all())
 
-    def UpdateById(
+    async def UpdateById(
         self,
         rule_id: int,
         trigger_keyword: str | None = None,
@@ -197,7 +141,7 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
         scope_mode: str | None = None,
         conversation_ids: list[int] | None = None,
     ) -> AutoReplyRule | None:
-        rule = self.FindById(rule_id)
+        rule = await self.FindById(rule_id)
         if rule is None:
             return None
         if trigger_keyword is not None:
@@ -212,22 +156,88 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
             rule.scope_mode = scope_mode
         if conversation_ids is not None:
             rule.conversation_ids = conversation_ids
-        self._session.flush()
+        await self._session.flush()
         return rule
 
-    def UpdateIsActiveById(self, rule_id: int, is_active: bool) -> bool:
-        rule = self.FindById(rule_id)
+    async def UpdateIsActiveById(self, rule_id: int, is_active: bool) -> bool:
+        rule = await self.FindById(rule_id)
         if rule is None:
             return False
         rule.is_active = is_active
-        self._session.flush()
+        await self._session.flush()
         return True
 
 
+class SqlAlchemyScheduledMessageTaskRepository(BaseRepository[ScheduledMessageTask], ScheduledMessageTaskRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session=session, model_type=ScheduledMessageTask)
+
+    async def FindById(self, task_id: int) -> ScheduledMessageTask | None:
+        return await self._session.get(ScheduledMessageTask, task_id)
+
+    async def FindAllByIsActive(self, is_active: bool) -> list[ScheduledMessageTask]:
+        stmt = select(ScheduledMessageTask).where(ScheduledMessageTask.is_active == is_active)
+        return list((await self._session.scalars(stmt)).all())
+
+    async def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[ScheduledMessageTask]:
+        stmt = (
+            select(ScheduledMessageTask)
+            .where(ScheduledMessageTask.account_id == account_id)
+            .order_by(ScheduledMessageTask.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list((await self._session.scalars(stmt)).all())
+
+    async def CountByAccountId(self, account_id: int) -> int:
+        stmt = select(func.count(ScheduledMessageTask.id)).where(ScheduledMessageTask.account_id == account_id)
+        return int((await self._session.scalar(stmt)) or 0)
+
+    async def UpdateById(
+        self, task_id: int, cron_expr: str, target_identifier: str, message_template: str,
+        scope_mode: str | None = None,
+        conversation_ids: list[int] | None = None,
+        message_ids: list[int] | None = None,
+    ) -> ScheduledMessageTask | None:
+        task = await self.FindById(task_id)
+        if task is None:
+            return None
+        task.cron_expr = cron_expr
+        task.target_identifier = target_identifier
+        task.message_template = message_template
+        if scope_mode is not None:
+            task.scope_mode = scope_mode
+        if conversation_ids is not None:
+            task.conversation_ids = conversation_ids
+        if message_ids is not None:
+            task.message_ids = message_ids
+        await self._session.flush()
+        return task
+
+    async def UpdateIsActiveById(self, task_id: int, is_active: bool) -> bool:
+        task = await self.FindById(task_id)
+        if task is None:
+            return False
+        task.is_active = is_active
+        await self._session.flush()
+        return True
+
+
+class SqlAlchemyRuleMessageTaskRepository(BaseRepository[RuleMessageTask], RuleMessageTaskRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session=session, model_type=RuleMessageTask)
+
+    async def FindById(self, task_id: int) -> RuleMessageTask | None:
+        return await self._session.get(RuleMessageTask, task_id)
+
+    async def FindAllByIsActive(self, is_active: bool) -> list[RuleMessageTask]:
+        stmt = select(RuleMessageTask).where(RuleMessageTask.is_active == is_active)
+        return list((await self._session.scalars(stmt)).all())
+
+
 class SqlAlchemyTaskExecutionLogRepository(BaseRepository[TaskExecutionLog], TaskExecutionLogRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         super().__init__(session=session, model_type=TaskExecutionLog)
 
-    def FindById(self, log_id: int) -> TaskExecutionLog | None:
-        stmt = select(TaskExecutionLog).where(TaskExecutionLog.id == log_id)
-        return self._session.scalar(stmt)
+    async def FindById(self, log_id: int) -> TaskExecutionLog | None:
+        return await self._session.get(TaskExecutionLog, log_id)

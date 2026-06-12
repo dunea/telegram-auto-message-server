@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import Response
 
-from app.api.deps import get_current_user, get_file_service
+from app.api.deps import get_file_service, get_current_user
 from app.api.http_errors import map_http_exceptions
 from app.schema.file import FileItemResponse, FileListResponse, UploadFileResponse
 from app.service.file_service import FileService
@@ -19,7 +19,7 @@ async def upload_file(
     """上传文件。"""
     with map_http_exceptions((ValueError, 400)):
         content = await file.read()
-        result = file_service.UploadFile(filename=file.filename or "unnamed.bin", content=content)
+        result = await file_service.UploadFile(filename=file.filename or "unnamed.bin", content=content)
         return UploadFileResponse(**result)
 
 
@@ -31,7 +31,7 @@ async def list_files(
     file_service: FileService = Depends(get_file_service),
 ) -> FileListResponse:
     """查询文件列表。"""
-    result = file_service.ListFiles(status=status, limit=limit, offset=offset)
+    result = await file_service.ListFiles(status=status, limit=limit, offset=offset)
     return FileListResponse(**result)
 
 
@@ -42,7 +42,7 @@ async def get_file_item(
 ) -> FileItemResponse:
     """查询单个文件信息。"""
     with map_http_exceptions((ValueError, 404)):
-        result = file_service.GetFileById(file_id=file_id)
+        result = await file_service.GetFileById(file_id=file_id)
         return FileItemResponse(**result)
 
 
@@ -53,7 +53,7 @@ async def download_file(
 ) -> Response:
     """下载文件。"""
     with map_http_exceptions((ValueError, 404)):
-        content, filename, mime_type = file_service.DownloadFile(file_id=file_id)
+        content, filename, mime_type = await file_service.DownloadFile(file_id=file_id)
         return Response(
             content=content,
             media_type=mime_type,
@@ -68,4 +68,4 @@ async def delete_file(
 ) -> dict:
     """软删除文件。"""
     with map_http_exceptions((ValueError, 404)):
-        return file_service.SoftDeleteFile(file_id=file_id)
+        return await file_service.SoftDeleteFile(file_id=file_id)

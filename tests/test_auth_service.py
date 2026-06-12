@@ -1,3 +1,4 @@
+import asyncio
 """AuthService.RegisterUser 校验逻辑单元测试。
 
 覆盖新增的邮箱正则校验与密码长度下限（6 位）逻辑。"""
@@ -20,26 +21,26 @@ class FakeUserRepository(UserRepository):
         self.saved: list[User] = []
         self._next_id = 1
 
-    def ExistsByEmail(self, email: str) -> bool:
+    async def ExistsByEmail(self, email: str) -> bool:
         return email in self._existing
 
-    def Save(self, entity: User) -> User:
+    async def Save(self, entity: User) -> User:
         if entity.id is None:
             entity.id = self._next_id
             self._next_id += 1
         self.saved.append(entity)
         return entity
 
-    def FindById(self, user_id: int) -> User | None:
+    async def FindById(self, user_id: int) -> User | None:
         raise NotImplementedError
 
-    def FindByEmail(self, email: str) -> User | None:
+    async def FindByEmail(self, email: str) -> User | None:
         raise NotImplementedError
 
-    def FindByApiKey(self, api_key: str) -> User | None:
+    async def FindByApiKey(self, api_key: str) -> User | None:
         raise NotImplementedError
 
-    def ExistsByApiKey(self, api_key: str) -> bool:
+    async def ExistsByApiKey(self, api_key: str) -> bool:
         raise NotImplementedError
 
 
@@ -49,7 +50,7 @@ class FakeSession:
     def __init__(self) -> None:
         self.commits = 0
 
-    def commit(self) -> None:
+    async def commit(self) -> None:
         self.commits += 1
 
 
@@ -76,7 +77,7 @@ def _build_service(existing_emails: set[str] | None = None) -> tuple[AuthService
 )
 def test_register_accepts_valid_email(email: str) -> None:
     service, _, _ = _build_service()
-    result = service.RegisterUser(email=email, password="Password123")
+    result = asyncio.run(service.RegisterUser(email=email, password="Password123"))
     assert result["email"] == email.strip().lower()
     assert result["is_active"] is True
 
@@ -101,14 +102,14 @@ def test_register_accepts_valid_email(email: str) -> None:
 def test_register_rejects_malformed_email(email: str) -> None:
     service, repo, session = _build_service()
     with pytest.raises(ValueError, match="邮箱格式不合法"):
-        service.RegisterUser(email=email, password="Password123")
+        asyncio.run(service.RegisterUser(email=email, password="Password123"))
     assert repo.saved == []
     assert session.commits == 0
 
 
 def test_register_normalizes_email_case_and_whitespace() -> None:
     service, repo, _ = _build_service()
-    result = service.RegisterUser(email="  Demo@Example.COM  ", password="Password123")
+    result = asyncio.run(service.RegisterUser(email="  Demo@Example.COM  ", password="Password123"))
     assert result["email"] == "demo@example.com"
     assert len(repo.saved) == 1
     assert repo.saved[0].email == "demo@example.com"
@@ -118,7 +119,7 @@ def test_register_normalizes_email_case_and_whitespace() -> None:
 
 def test_register_accepts_six_char_password() -> None:
     service, repo, _ = _build_service()
-    result = service.RegisterUser(email="demo@example.com", password="abcdef")
+    result = asyncio.run(service.RegisterUser(email="demo@example.com", password="abcdef"))
     assert result["email"] == "demo@example.com"
     assert result["is_active"] is True
     assert len(repo.saved) == 1
@@ -127,7 +128,7 @@ def test_register_accepts_six_char_password() -> None:
 def test_register_rejects_five_char_password() -> None:
     service, repo, session = _build_service()
     with pytest.raises(ValueError, match="密码长度需在 6-128 位之间"):
-        service.RegisterUser(email="demo@example.com", password="abcde")
+        asyncio.run(service.RegisterUser(email="demo@example.com", password="abcde"))
     assert repo.saved == []
     assert session.commits == 0
 
@@ -135,14 +136,14 @@ def test_register_rejects_five_char_password() -> None:
 def test_register_accepts_max_length_password() -> None:
     service, repo, _ = _build_service()
     password = "a" * 128
-    service.RegisterUser(email="demo@example.com", password=password)
+    asyncio.run(service.RegisterUser(email="demo@example.com", password=password))
     assert len(repo.saved) == 1
 
 
 def test_register_rejects_over_max_length_password() -> None:
     service, repo, session = _build_service()
     with pytest.raises(ValueError, match="密码长度需在 6-128 位之间"):
-        service.RegisterUser(email="demo@example.com", password="a" * 129)
+        asyncio.run(service.RegisterUser(email="demo@example.com", password="a" * 129))
     assert repo.saved == []
     assert session.commits == 0
 
@@ -152,7 +153,7 @@ def test_register_rejects_over_max_length_password() -> None:
 def test_register_rejects_duplicate_email() -> None:
     service, repo, session = _build_service(existing_emails={"demo@example.com"})
     with pytest.raises(ValueError, match="邮箱已注册"):
-        service.RegisterUser(email="Demo@Example.com", password="Password123")
+        asyncio.run(service.RegisterUser(email="Demo@Example.com", password="Password123"))
     assert repo.saved == []
     assert session.commits == 0
 
@@ -163,6 +164,6 @@ def test_register_validates_email_before_password() -> None:
     """两个字段都不合法时，邮箱错误先抛出（短路）。"""
     service, repo, session = _build_service()
     with pytest.raises(ValueError, match="邮箱格式不合法"):
-        service.RegisterUser(email="not-an-email", password="abc")
+        asyncio.run(service.RegisterUser(email="not-an-email", password="abc"))
     assert repo.saved == []
     assert session.commits == 0

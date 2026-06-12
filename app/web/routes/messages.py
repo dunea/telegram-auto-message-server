@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session
 from app.models.account import TelegramAccount
@@ -23,12 +23,12 @@ async def list_messages(
     limit: int = 100,
     offset: int = 0,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
 ):
     # 查询所有托管账号，用于在顶部下拉筛选
-    accounts = db_session.scalars(
+    accounts = await db_session.scalars(
         select(TelegramAccount).order_by(TelegramAccount.id)
-    ).all()
+    )
     accounts_map = {acc.id: acc for acc in accounts}
 
     # 构建消息查询语句
@@ -44,7 +44,7 @@ async def list_messages(
 
     # 分页限制
     stmt = stmt.limit(limit).offset(offset)
-    messages = db_session.scalars(stmt).all()
+    messages = (await db_session.scalars(stmt))
 
     return templates.TemplateResponse(
         "messages/list.html",

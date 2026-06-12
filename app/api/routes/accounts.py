@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_current_user, get_telegram_service
+from app.api.deps import get_telegram_service, get_current_user
 from app.api.http_errors import map_http_exceptions
 from app.schema.account import (
     AccountOnlineRequest,
@@ -42,7 +42,7 @@ async def create_telegram_account(
     业务校验失败时，ValueError 映射为 400。
     """
     with map_http_exceptions((ValueError, 400)):
-        return telegram_service.CreateAccount(
+        return await telegram_service.CreateAccount(
             phone_number=payload.phone_number,
             proxy_id=payload.proxy_id,
             session_string=payload.session_string,
@@ -111,7 +111,7 @@ async def list_telegram_accounts(
     telegram_service: TelegramService = Depends(get_telegram_service),
 ) -> list[dict]:
     """列出当前服务已托管的 Telegram 账户。"""
-    return telegram_service.ListManagedAccounts()
+    return await telegram_service.ListManagedAccounts()
 
 
 @router.patch("/{account_id}/active", response_model=AccountStatusResponse)
@@ -122,7 +122,7 @@ async def update_account_active(
 ) -> AccountStatusResponse:
     """启用或停用账号。"""
     with map_http_exceptions((ValueError, 404)):
-        result = telegram_service.SetAccountActive(account_id=account_id, is_active=payload.is_active)
+        result = await telegram_service.SetAccountActive(account_id=account_id, is_active=payload.is_active)
         return AccountStatusResponse(**result)
 
 
@@ -133,7 +133,7 @@ async def soft_delete_account(
 ) -> dict:
     """软删除账号。"""
     with map_http_exceptions((ValueError, 404)):
-        return telegram_service.SoftDeleteAccount(account_id=account_id)
+        return await telegram_service.SoftDeleteAccount(account_id=account_id)
 
 
 @router.post("/{account_id}/online")
@@ -154,8 +154,9 @@ async def ensure_telegram_account_online(
     """
     with map_http_exceptions((ValueError, 404)):
         if payload.session_string:
-            # 仅在调用方显式提供新会话串时更新，避免覆盖已存档会话。
-            telegram_service.UpdateAccountSessionString(account_id=account_id, session_string=payload.session_string)
+            await telegram_service.UpdateAccountSessionString(
+                account_id=account_id, session_string=payload.session_string
+            )
         return await telegram_service.EnsureAccountOnline(account_id=account_id)
 
 

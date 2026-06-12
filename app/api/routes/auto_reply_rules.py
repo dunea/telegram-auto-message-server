@@ -24,7 +24,7 @@ async def create_auto_reply_rule(
 ) -> AutoReplyRuleResponse:
     """新增回复消息规则。"""
     with map_http_exceptions((ValueError, 400)):
-        result = auto_reply_service.CreateRule(
+        result = await auto_reply_service.CreateRule(
             account_id=payload.account_id,
             trigger_keyword=payload.trigger_keyword,
             reply_content=payload.reply_content,
@@ -45,7 +45,7 @@ async def list_auto_reply_rules(
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
 ) -> AutoReplyRuleListResponse:
     """查询回复消息规则列表。"""
-    result = auto_reply_service.ListRulesByAccountId(account_id=account_id, limit=limit, offset=offset)
+    result = await auto_reply_service.ListRulesByAccountId(account_id=account_id, limit=limit, offset=offset)
     return AutoReplyRuleListResponse(**result)
 
 
@@ -56,7 +56,7 @@ async def get_auto_reply_rule(
 ) -> AutoReplyRuleResponse:
     """查询单个回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        return AutoReplyRuleResponse(**auto_reply_service.GetRuleById(rule_id=rule_id))
+        return AutoReplyRuleResponse(**await auto_reply_service.GetRuleById(rule_id=rule_id))
 
 
 @router.put("/{rule_id}", response_model=AutoReplyRuleResponse)
@@ -67,7 +67,7 @@ async def update_auto_reply_rule(
 ) -> AutoReplyRuleResponse:
     """修改回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        result = auto_reply_service.UpdateRule(
+        result = await auto_reply_service.UpdateRule(
             rule_id=rule_id,
             trigger_keyword=payload.trigger_keyword,
             reply_content=payload.reply_content,
@@ -88,7 +88,7 @@ async def update_auto_reply_rule_active(
 ) -> AutoReplyRuleResponse:
     """启用或停用回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        result = auto_reply_service.SetRuleActive(rule_id=rule_id, is_active=payload.is_active)
+        result = await auto_reply_service.SetRuleActive(rule_id=rule_id, is_active=payload.is_active)
         return AutoReplyRuleResponse(**result)
 
 
@@ -99,4 +99,4 @@ async def delete_auto_reply_rule(
 ) -> dict:
     """软删除回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        return auto_reply_service.SoftDeleteRule(rule_id=rule_id)
+        return await auto_reply_service.SoftDeleteRule(rule_id=rule_id)

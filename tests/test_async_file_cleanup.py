@@ -1,33 +1,19 @@
-"""文件过期清理测试。"""
+"""AsyncFileService.CleanupExpiredFiles 异步测试（PR #11 收尾后）。
 
+说明：
+- 覆盖 ``AsyncFileService`` 清理过期文件路径（PR #11 收尾前称 AsyncFileService，收尾后为 FileService）；
+- async repository 用 ``AsyncMock`` 模拟；
+- async s3 adapter 用 ``AsyncMock`` 模拟；
+- 业务行为与原 ``test_file_cleanup.py`` 一致（PR #11 收尾前测 sync FileService）。
+"""
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from app.config import Settings
 from app.service.file_service import FileService
-
-
-class FakeFileRepository:
-    def __init__(self, records: list[SimpleNamespace]) -> None:
-        self._records = records
-
-    def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[SimpleNamespace]:
-        matched = [
-            item
-            for item in self._records
-            if item.status == status and item.expires_at is not None and item.expires_at <= expires_before
-        ]
-        return matched[: max(1, int(limit))]
-
-
-class FakeS3Adapter:
-    def __init__(self) -> None:
-        self.deleted_keys: list[str] = []
-
-    def DeleteFile(self, key: str) -> bool:
-        self.deleted_keys.append(key)
-        return True
 
 
 def _build_settings(tmp_path: Path) -> Settings:
@@ -73,27 +59,30 @@ def test_cleanup_expired_files_marks_deleted_and_removes_local(tmp_path: Path) -
         ),
     ]
 
-    fake_repository = FakeFileRepository(records)
-    fake_s3_adapter = FakeS3Adapter()
+    fake_repository = AsyncMock()
+    fake_repository.FindAllByStatusAndExpiresAtBefore = AsyncMock(side_effect=[
+        [records[0]],  # pending batch
+        [records[1]],  # uploaded batch
+    ])
 
-    committed = {"value": False}
+    fake_s3_adapter = AsyncMock()
+    fake_s3_adapter.DeleteFile = AsyncMock(return_value=True)
 
-    class FakeSession:
-        def commit(self) -> None:
-            committed["value"] = True
+    fake_session = AsyncMock()
+    fake_session.commit = AsyncMock(return_value=None)
 
     service = FileService(
         settings=_build_settings(tmp_path),
-        session=FakeSession(),
+        session=fake_session,  # type: ignore[arg-type]
         file_record_repository=fake_repository,  # type: ignore[arg-type]
         s3_adapter=fake_s3_adapter,  # type: ignore[arg-type]
     )
 
-    result = service.CleanupExpiredFiles()
+    result = asyncio.run(service.CleanupExpiredFiles())
 
     assert result["cleaned"] == 2
     assert result["s3_delete_failed"] == 0
-    assert committed["value"] is True
+    fake_session.commit.assert_awaited_once()
 
     assert records[0].status == "deleted"
     assert records[1].status == "deleted"
@@ -102,4 +91,4 @@ def test_cleanup_expired_files_marks_deleted_and_removes_local(tmp_path: Path) -
     assert expired_pending_path.exists() is False
     assert expired_uploaded_path.exists() is False
     assert not_expired_path.exists() is True
-    assert fake_s3_adapter.deleted_keys == ["uploads/expired_uploaded.txt"]
+    fake_s3_adapter.DeleteFile.assert_awaited_once_with(key="uploads/expired_uploaded.txt")

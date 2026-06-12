@@ -1,19 +1,32 @@
 import random
 from typing import Any
 
-from sqlalchemy.orm import Session
-
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.reply_message import ReplyMessage
 from app.models.task import AutoReplyRule
-from app.repository.reply_message_repository import SqlAlchemyReplyMessageRepository
-from app.repository.task_repository import SqlAlchemyAutoReplyRuleRepository
+from app.repository.reply_message_repository import (
+    SqlAlchemyReplyMessageRepository,
+)
+from app.repository.task_repository import (
+    SqlAlchemyAutoReplyRuleRepository,
+)
 from app.schema.reply_message import ReplyMessageCreate
 
-
 class AutoReplyService:
-    """自动回复规则服务。"""
+    """自动回复规则服务（异步版本，PR #6 引入）。
 
-    def __init__(self, session: Session, auto_reply_rule_repository: SqlAlchemyAutoReplyRuleRepository) -> None:
+    说明：
+    1. 与 ``AutoReplyService``（同步）并存到 PR #11 收尾；
+    2. web 路由（``app/web/routes/auto_reply.py``）继续用同步版，本 PR 不动；
+    3. ``ListRules`` 内部拼 select 保留（不顺带下沉到 repository，PR #11 收尾）。
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        auto_reply_rule_repository: SqlAlchemyAutoReplyRuleRepository,
+    ) -> None:
         self._session = session
         self._auto_reply_rule_repository = auto_reply_rule_repository
 
@@ -48,7 +61,7 @@ class AutoReplyService:
             ],
         }
 
-    def CreateRule(
+    async def CreateRule(
         self,
         account_id: int,
         trigger_keyword: str = "",
@@ -69,8 +82,8 @@ class AutoReplyService:
             scope_mode=scope_mode,
             conversation_ids=conversation_ids,
         )
-        self._auto_reply_rule_repository.Save(rule)
-        self._session.commit()
+        await self._auto_reply_rule_repository.Save(rule)
+        await self._session.commit()
         if reply_messages:
             reply_repo = SqlAlchemyReplyMessageRepository(self._session)
             for msg_data in reply_messages:
@@ -80,24 +93,24 @@ class AutoReplyService:
                     for m in msg_data.media:
                         media_objs.append(ReplyMessageMedia(
                             file_record_id=m.file_record_id,
-                            sort_order=m.sort_order
+                            sort_order=m.sort_order,
                         ))
-                reply_repo.Save(ReplyMessage(
+                await reply_repo.Save(ReplyMessage(
                     rule_id=int(rule.id),
                     text=msg_data.text,
                     sort_order=msg_data.sort_order,
                     media=media_objs,
                 ))
-            self._session.commit()
+            await self._session.commit()
         return self._to_rule_dict(rule)
 
-    def GetRuleById(self, rule_id: int) -> dict[str, Any]:
-        rule = self._auto_reply_rule_repository.FindById(rule_id)
+    async def GetRuleById(self, rule_id: int) -> dict[str, Any]:
+        rule = await self._auto_reply_rule_repository.FindById(rule_id)
         if rule is None:
             raise ValueError("回复消息不存在")
         return self._to_rule_dict(rule)
 
-    def UpdateRule(
+    async def UpdateRule(
         self,
         rule_id: int,
         trigger_keyword: str | None = None,
@@ -121,13 +134,13 @@ class AutoReplyService:
             kwargs["scope_mode"] = scope_mode
         if conversation_ids is not None:
             kwargs["conversation_ids"] = conversation_ids
-        rule = self._auto_reply_rule_repository.UpdateById(rule_id=rule_id, **kwargs)
+        rule = await self._auto_reply_rule_repository.UpdateById(rule_id=rule_id, **kwargs)
         if rule is None:
             raise ValueError("回复消息不存在")
-        self._session.commit()
+        await self._session.commit()
         if reply_messages is not None:
             reply_repo = SqlAlchemyReplyMessageRepository(self._session)
-            reply_repo.DeleteAllByRuleId(rule_id)
+            await reply_repo.DeleteAllByRuleId(rule_id)
             for msg_data in reply_messages:
                 media_objs = []
                 if msg_data.media:
@@ -135,64 +148,70 @@ class AutoReplyService:
                     for m in msg_data.media:
                         media_objs.append(ReplyMessageMedia(
                             file_record_id=m.file_record_id,
-                            sort_order=m.sort_order
+                            sort_order=m.sort_order,
                         ))
-                reply_repo.Save(ReplyMessage(
+                await reply_repo.Save(ReplyMessage(
                     rule_id=rule_id,
                     text=msg_data.text,
                     sort_order=msg_data.sort_order,
                     media=media_objs,
                 ))
-            self._session.commit()
+            await self._session.commit()
         return self._to_rule_dict(rule)
 
-    def SetRuleActive(self, rule_id: int, is_active: bool) -> dict[str, Any]:
-        updated = self._auto_reply_rule_repository.UpdateIsActiveById(rule_id=rule_id, is_active=is_active)
+    async def SetRuleActive(self, rule_id: int, is_active: bool) -> dict[str, Any]:
+        updated = await self._auto_reply_rule_repository.UpdateIsActiveById(
+            rule_id=rule_id, is_active=is_active
+        )
         if not updated:
             raise ValueError("回复消息不存在")
-        self._session.commit()
-        return self.GetRuleById(rule_id)
+        await self._session.commit()
+        return await self.GetRuleById(rule_id)
 
-    def SoftDeleteRule(self, rule_id: int) -> dict[str, Any]:
-        rule = self.SetRuleActive(rule_id=rule_id, is_active=False)
+    async def SoftDeleteRule(self, rule_id: int) -> dict[str, Any]:
+        rule = await self.SetRuleActive(rule_id=rule_id, is_active=False)
         return {**rule, "deleted": True}
 
-    def ListRules(self, account_id: int | None = None, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+    async def ListRules(
+        self, account_id: int | None = None, limit: int = 100, offset: int = 0
+    ) -> dict[str, Any]:
         if account_id is not None:
-            return self.ListRulesByAccountId(account_id, limit, offset)
-        
-        from sqlalchemy import select, func
+            return await self.ListRulesByAccountId(account_id, limit, offset)
         stmt = (
             select(AutoReplyRule)
             .order_by(AutoReplyRule.id.desc())
             .offset(offset)
             .limit(limit)
         )
-        items = list(self._session.scalars(stmt).all())
-        total = int(self._session.scalar(select(func.count(AutoReplyRule.id))) or 0)
+        items = list((await self._session.scalars(stmt)).all())
+        total = int((await self._session.scalar(select(func.count(AutoReplyRule.id)))) or 0)
         return {
             "total": total,
             "items": [self._to_rule_dict(item) for item in items],
         }
 
-    def ListRulesByAccountId(self, account_id: int, limit: int, offset: int) -> dict[str, Any]:
-        items = self._auto_reply_rule_repository.FindAllByAccountIdOrderByIdDesc(
+    async def ListRulesByAccountId(
+        self, account_id: int, limit: int, offset: int
+    ) -> dict[str, Any]:
+        items = await self._auto_reply_rule_repository.FindAllByAccountIdOrderByIdDesc(
             account_id=account_id,
             limit=limit,
             offset=offset,
         )
-        total = self._auto_reply_rule_repository.CountByAccountId(account_id=account_id)
+        total = await self._auto_reply_rule_repository.CountByAccountId(account_id=account_id)
         return {
             "total": int(total),
             "items": [self._to_rule_dict(item) for item in items],
         }
 
-    def MatchAutoReply(self, account_id: int, content: str, peer_id: int | None = None) -> str | None:
+    async def MatchAutoReply(
+        self, account_id: int, content: str, peer_id: int | None = None
+    ) -> str | None:
         """按账号查找第一个命中的启用规则，支持 trigger_mode 和 scope_mode。"""
         normalized_content = content.strip().lower()
         if not normalized_content:
             return None
-        rules = self._auto_reply_rule_repository.FindAllByAccountIdAndIsActive(
+        rules = await self._auto_reply_rule_repository.FindAllByAccountIdAndIsActive(
             account_id=account_id, is_active=True
         )
         for rule in rules:

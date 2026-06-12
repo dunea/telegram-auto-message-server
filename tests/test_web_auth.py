@@ -12,12 +12,12 @@ from app.web.routes.auth import router as auth_router
 class FakeAuthServiceForWeb:
     """用于 Web 认证路由测试的伪认证服务。"""
 
-    def RegisterUser(self, email: str, password: str) -> dict:
+    async def RegisterUser(self, email: str, password: str) -> dict:
         if email == "exist@example.com":
             raise ValueError("邮箱已注册")
         return {"user_id": 1, "email": email, "is_active": True}
 
-    def LoginUser(self, email: str, password: str) -> dict:
+    async def LoginUser(self, email: str, password: str) -> dict:
         if email == "wrong@example.com":
             raise ValueError("邮箱或密码错误")
         return {

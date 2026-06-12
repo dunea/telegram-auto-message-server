@@ -3,16 +3,22 @@ import json
 import random
 from typing import Any
 
-from sqlalchemy.orm import Session, sessionmaker
-
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.adapter.telegram_adapter import TelegramAdapter
 from app.common.error_classifier import classify_error_message
 from app.config import Settings
 from app.models.enums import MessageContentType, MessageMediaType, MessageSourceType, TaskExecutionStatus
 from app.models.message import MessageContent, MessageContentMedia
-from app.models.task import RuleMessageTask, ScheduledMessageTask
-from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
+from app.models.task import RuleMessageTask, ScheduledMessageTask, TaskExecutionLog
+from app.repository.account_repository import (
+    SqlAlchemyTelegramAccountRepository,
+)
 from app.repository.message_repository import (
+    SqlAlchemyMessageContentMediaRepository,
+    SqlAlchemyMessageContentRepository,
+    SqlAlchemyTelegramMessageMediaRepository,
+    SqlAlchemyTelegramMessageRepository,
+    SqlAlchemyTelegramMessageSendAttemptRepository,
     SqlAlchemyMessageContentMediaRepository,
     SqlAlchemyMessageContentRepository,
     SqlAlchemyTelegramMessageMediaRepository,
@@ -23,19 +29,28 @@ from app.repository.task_repository import (
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
     SqlAlchemyTaskExecutionLogRepository,
+    SqlAlchemyRuleMessageTaskRepository,
+    SqlAlchemyScheduledMessageTaskRepository,
+    SqlAlchemyTaskExecutionLogRepository,
 )
 from app.service.telegram_service import TelegramService
 from app.worker.task_scheduler import TaskScheduler
 
-
 class TaskService:
-    """定时任务与规则任务服务。"""
+    """定时任务与规则任务服务（异步版本，PR #8 引入）。
+
+    说明：
+    1. 与 ``TaskService``（同步）并存到 PR #11 收尾；
+    2. 接收 ``AsyncSession`` + ``session_factory``，不保留同步 ``session_factory``；
+    3. pool_runner / startup 内的同步路径仍用 ``TaskService``（PR #11 收尾时统一改 async）；
+    4. ``ExecuteScheduledTaskById`` / ``ExecuteRuleTaskById`` 内部构造 ``TelegramService`` 用 async factory。
+    """
 
     def __init__(
         self,
         settings: Settings,
-        session: Session,
-        session_factory: sessionmaker[Session],
+        session: AsyncSession,
+        session_factory: async_sessionmaker[AsyncSession],
         scheduler: TaskScheduler,
         telegram_adapter: TelegramAdapter,
         message_content_repository: SqlAlchemyMessageContentRepository,
@@ -110,7 +125,7 @@ class TaskService:
                     return enum_item
         return None
 
-    def _build_message_content(self, account_id: int, payload: dict[str, Any]) -> MessageContent:
+    async def _build_message_content(self, account_id: int, payload: dict[str, Any]) -> MessageContent:
         nested_message_content = payload.get("message_content")
         if isinstance(nested_message_content, dict):
             content_type = self._normalize_content_type(
@@ -165,8 +180,8 @@ class TaskService:
             extra_json=str(payload.get("extra_json") or "{}"),
             is_active=True,
         )
-        self._message_content_repository.Save(message_content)
-        self._session.flush()
+        await self._message_content_repository.Save(message_content)
+        await self._session.flush()
 
         media_items_payload = payload.get("media_items")
         nested_message_content = payload.get("message_content")
@@ -185,11 +200,11 @@ class TaskService:
                     caption=self._clean_optional_text(str(item.get("caption") or "")),
                     sort_order=int(item.get("sort_order") or idx),
                 )
-                self._message_content_media_repository.Save(media_detail)
+                await self._message_content_media_repository.Save(media_detail)
 
         return message_content
 
-    def _create_task_execution_log(
+    async def _create_task_execution_log(
         self,
         task_execution_log_repository: SqlAlchemyTaskExecutionLogRepository,
         task_type: str,
@@ -198,8 +213,6 @@ class TaskService:
         message_content_id: int | None,
         target_identifier: str,
     ):
-        from app.models.task import TaskExecutionLog
-
         execution_log = TaskExecutionLog(
             task_type=task_type,
             task_id=task_id,
@@ -215,12 +228,12 @@ class TaskService:
             shard_index=int(self._settings.pool_shard_index),
             total_shards=max(1, int(self._settings.pool_total_shards)),
         )
-        task_execution_log_repository.Save(execution_log)
+        await task_execution_log_repository.Save(execution_log)
         return execution_log
 
-    def RegisterScheduledTask(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def RegisterScheduledTask(self, payload: dict[str, Any]) -> dict[str, Any]:
         """注册定时任务并接入调度器。"""
-        message_content = self._build_message_content(int(payload["account_id"]), payload)
+        message_content = await self._build_message_content(int(payload["account_id"]), payload)
         task = ScheduledMessageTask(
             account_id=int(payload["account_id"]),
             message_content_id=int(message_content.id),
@@ -232,8 +245,8 @@ class TaskService:
             conversation_ids=payload.get("conversation_ids"),
             message_ids=payload.get("message_ids"),
         )
-        self._scheduled_task_repository.Save(task)
-        self._session.commit()
+        await self._scheduled_task_repository.Save(task)
+        await self._session.commit()
 
         assigned_to_current_pool = self._belongs_to_current_shard(int(task.id))
         if assigned_to_current_pool:
@@ -259,12 +272,12 @@ class TaskService:
             "assigned_to_current_pool": assigned_to_current_pool,
         }
 
-    def RegisterRuleTask(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def RegisterRuleTask(self, payload: dict[str, Any]) -> dict[str, Any]:
         """注册规则任务并接入调度器。
 
         约定：condition_json 可包含 interval_seconds 字段决定轮询频率。
         """
-        message_content = self._build_message_content(int(payload["account_id"]), payload)
+        message_content = await self._build_message_content(int(payload["account_id"]), payload)
         task = RuleMessageTask(
             account_id=int(payload["account_id"]),
             message_content_id=int(message_content.id),
@@ -273,8 +286,8 @@ class TaskService:
             action_json=str(payload["action_json"]),
             is_active=True,
         )
-        self._rule_task_repository.Save(task)
-        self._session.commit()
+        await self._rule_task_repository.Save(task)
+        await self._session.commit()
 
         interval_seconds = 30
         try:
@@ -308,7 +321,8 @@ class TaskService:
             "assigned_to_current_pool": assigned_to_current_pool,
         }
 
-    def _to_scheduled_task_dict(self, task: ScheduledMessageTask) -> dict[str, Any]:
+    @staticmethod
+    def _to_scheduled_task_dict(task: ScheduledMessageTask) -> dict[str, Any]:
         return {
             "task_id": int(task.id),
             "account_id": int(task.account_id),
@@ -322,30 +336,30 @@ class TaskService:
             "message_ids": task.message_ids,
         }
 
-    def GetScheduledTaskById(self, task_id: int) -> dict[str, Any]:
-        task = self._scheduled_task_repository.FindById(task_id)
+    async def GetScheduledTaskById(self, task_id: int) -> dict[str, Any]:
+        task = await self._scheduled_task_repository.FindById(task_id)
         if task is None:
             raise ValueError("定时消息不存在")
         return self._to_scheduled_task_dict(task)
 
-    def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int) -> dict[str, Any]:
-        items = self._scheduled_task_repository.FindAllByAccountIdOrderByIdDesc(
+    async def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int) -> dict[str, Any]:
+        items = await self._scheduled_task_repository.FindAllByAccountIdOrderByIdDesc(
             account_id=account_id,
             limit=limit,
             offset=offset,
         )
-        total = self._scheduled_task_repository.CountByAccountId(account_id=account_id)
+        total = await self._scheduled_task_repository.CountByAccountId(account_id=account_id)
         return {
             "total": int(total),
             "items": [self._to_scheduled_task_dict(item) for item in items],
         }
 
-    def UpdateScheduledTask(self, task_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-        task = self._scheduled_task_repository.FindById(task_id)
+    async def UpdateScheduledTask(self, task_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        task = await self._scheduled_task_repository.FindById(task_id)
         if task is None:
             raise ValueError("定时消息不存在")
 
-        message_content = self._build_message_content(int(task.account_id), payload)
+        message_content = await self._build_message_content(int(task.account_id), payload)
         task.cron_expr = str(payload["cron_expr"])
         task.target_identifier = str(payload["target_identifier"])
         task.message_template = str(payload.get("message_template") or "")
@@ -356,7 +370,7 @@ class TaskService:
             task.conversation_ids = payload.get("conversation_ids")
         if "message_ids" in payload:
             task.message_ids = payload.get("message_ids")
-        self._session.commit()
+        await self._session.commit()
 
         if task.is_active and self._belongs_to_current_shard(int(task.id)):
             self._scheduler.AddOrReplaceCronJob(
@@ -368,13 +382,13 @@ class TaskService:
 
         return self._to_scheduled_task_dict(task)
 
-    def SetScheduledTaskActive(self, task_id: int, is_active: bool) -> dict[str, Any]:
-        task = self._scheduled_task_repository.FindById(task_id)
+    async def SetScheduledTaskActive(self, task_id: int, is_active: bool) -> dict[str, Any]:
+        task = await self._scheduled_task_repository.FindById(task_id)
         if task is None:
             raise ValueError("定时消息不存在")
 
         task.is_active = is_active
-        self._session.commit()
+        await self._session.commit()
 
         job_id = self._build_scheduled_job_id(int(task.id))
         if is_active and self._belongs_to_current_shard(int(task.id)):
@@ -389,13 +403,13 @@ class TaskService:
 
         return self._to_scheduled_task_dict(task)
 
-    def SoftDeleteScheduledTask(self, task_id: int) -> dict[str, Any]:
-        task_status = self.SetScheduledTaskActive(task_id=task_id, is_active=False)
+    async def SoftDeleteScheduledTask(self, task_id: int) -> dict[str, Any]:
+        task_status = await self.SetScheduledTaskActive(task_id=task_id, is_active=False)
         return {**task_status, "deleted": True}
 
-    def ReloadActiveTasksToScheduler(self) -> None:
+    async def ReloadActiveTasksToScheduler(self) -> None:
         """应用启动后重载激活任务。"""
-        scheduled_tasks = self._scheduled_task_repository.FindAllByIsActive(True)
+        scheduled_tasks = await self._scheduled_task_repository.FindAllByIsActive(True)
         loaded_scheduled = 0
         for task in scheduled_tasks:
             if not self._belongs_to_current_shard(int(task.id)):
@@ -408,7 +422,7 @@ class TaskService:
             )
             loaded_scheduled += 1
 
-        rule_tasks = self._rule_task_repository.FindAllByIsActive(True)
+        rule_tasks = await self._rule_task_repository.FindAllByIsActive(True)
         loaded_rule = 0
         for task in rule_tasks:
             if not self._belongs_to_current_shard(int(task.id)):
@@ -443,8 +457,7 @@ class TaskService:
             )
             return
 
-        session = self._session_factory()
-        try:
+        async with self._session_factory() as session:
             scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
             account_repository = SqlAlchemyTelegramAccountRepository(session)
             message_content_repository = SqlAlchemyMessageContentRepository(session)
@@ -465,21 +478,19 @@ class TaskService:
                 telegram_adapter=self._telegram_adapter,
             )
 
-            task = scheduled_task_repository.FindById(task_id)
+            task = await scheduled_task_repository.FindById(task_id)
             if task is None or not task.is_active:
                 return
 
-            # 如果配置了 message_ids，随机选取一条
             message_content_id = task.message_content_id
             if task.message_ids and isinstance(task.message_ids, list) and len(task.message_ids) > 0:
                 message_content_id = random.choice(task.message_ids)
 
-            # 如果配置了 scope_mode="specific"，确定目标
             target_identifier = task.target_identifier
             if task.scope_mode == "specific" and task.conversation_ids and isinstance(task.conversation_ids, list):
                 target_identifier = str(random.choice(task.conversation_ids))
 
-            execution_log = self._create_task_execution_log(
+            execution_log = await self._create_task_execution_log(
                 task_execution_log_repository=task_execution_log_repository,
                 task_type="scheduled",
                 task_id=int(task.id),
@@ -487,7 +498,7 @@ class TaskService:
                 message_content_id=message_content_id,
                 target_identifier=target_identifier,
             )
-            session.commit()
+            await session.commit()
 
             send_result = await telegram_service.SendMessage(
                 account_id=int(task.account_id),
@@ -504,7 +515,7 @@ class TaskService:
             execution_log.finished_at = datetime.utcnow()
             execution_log.duration_ms = int((execution_log.finished_at - execution_log.started_at).total_seconds() * 1000)
             execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
-            session.commit()
+            await session.commit()
 
             error_class = classify_error_message(execution_log.error_message)
             self._log_task_event(
@@ -517,8 +528,6 @@ class TaskService:
                 duration_ms=execution_log.duration_ms,
                 error_class=str(error_class),
             )
-        finally:
-            session.close()
 
     async def ExecuteRuleTaskById(self, task_id: int) -> None:
         """执行单个规则任务。
@@ -533,8 +542,7 @@ class TaskService:
             )
             return
 
-        session = self._session_factory()
-        try:
+        async with self._session_factory() as session:
             rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
             account_repository = SqlAlchemyTelegramAccountRepository(session)
             message_content_repository = SqlAlchemyMessageContentRepository(session)
@@ -555,7 +563,7 @@ class TaskService:
                 telegram_adapter=self._telegram_adapter,
             )
 
-            task = rule_task_repository.FindById(task_id)
+            task = await rule_task_repository.FindById(task_id)
             if task is None or not task.is_active:
                 return
 
@@ -569,7 +577,7 @@ class TaskService:
             if not target_identifier or not content:
                 return
 
-            execution_log = self._create_task_execution_log(
+            execution_log = await self._create_task_execution_log(
                 task_execution_log_repository=task_execution_log_repository,
                 task_type="rule",
                 task_id=int(task.id),
@@ -577,7 +585,7 @@ class TaskService:
                 message_content_id=task.message_content_id,
                 target_identifier=target_identifier,
             )
-            session.commit()
+            await session.commit()
 
             send_result = await telegram_service.SendMessage(
                 account_id=int(task.account_id),
@@ -594,7 +602,7 @@ class TaskService:
             execution_log.finished_at = datetime.utcnow()
             execution_log.duration_ms = int((execution_log.finished_at - execution_log.started_at).total_seconds() * 1000)
             execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
-            session.commit()
+            await session.commit()
 
             error_class = classify_error_message(execution_log.error_message)
             self._log_task_event(
@@ -607,5 +615,3 @@ class TaskService:
                 duration_ms=execution_log.duration_ms,
                 error_class=str(error_class),
             )
-        finally:
-            session.close()

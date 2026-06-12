@@ -1,8 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.orm import Session
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapter.telegram_adapter import TelegramAdapter
 from app.config import Settings
 from app.models.account import TelegramAccount
@@ -22,8 +21,15 @@ from app.models.message import (
     TelegramMessageMedia,
     TelegramMessageSendAttempt,
 )
-from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
+from app.repository.account_repository import (
+    SqlAlchemyTelegramAccountRepository,
+)
 from app.repository.message_repository import (
+    SqlAlchemyMessageContentMediaRepository,
+    SqlAlchemyMessageContentRepository,
+    SqlAlchemyTelegramMessageMediaRepository,
+    SqlAlchemyTelegramMessageRepository,
+    SqlAlchemyTelegramMessageSendAttemptRepository,
     SqlAlchemyMessageContentMediaRepository,
     SqlAlchemyMessageContentRepository,
     SqlAlchemyTelegramMessageMediaRepository,
@@ -31,14 +37,20 @@ from app.repository.message_repository import (
     SqlAlchemyTelegramMessageSendAttemptRepository,
 )
 
-
 class TelegramService:
-    """Telegram 核心能力服务。"""
+    """Telegram 服务（异步版本，PR #5 + PR #7 合并）。
+
+    说明：
+    1. 覆盖 messages（PR #5）+ accounts（PR #7）所有路由所需方法；
+    2. 与 ``TelegramService``（同步）并存到 PR #11 收尾；
+    3. pool_runner 与 web 路由仍用同步 ``TelegramService``；
+    4. PR #7 阶段：``_get_account_or_raise`` 重构为通过 ``SqlAlchemyTelegramAccountRepository``。
+    """
 
     def __init__(
         self,
         settings: Settings,
-        session: Session,
+        session: AsyncSession,
         account_repository: SqlAlchemyTelegramAccountRepository,
         message_content_repository: SqlAlchemyMessageContentRepository,
         message_content_media_repository: SqlAlchemyMessageContentMediaRepository,
@@ -57,8 +69,14 @@ class TelegramService:
         self._message_send_attempt_repository = message_send_attempt_repository
         self._telegram_adapter = telegram_adapter
 
-    def _get_account_or_raise(self, account_id: int) -> TelegramAccount:
-        account = self._account_repository.FindById(account_id)
+    async def _get_account_or_raise(self, account_id: int) -> TelegramAccount:
+        account = await self._account_repository.FindById(account_id)
+        if account is None:
+            raise ValueError("账号不存在")
+        return account
+
+    async def _get_account_by_phone_or_raise(self, phone_number: str) -> TelegramAccount:
+        account = await self._account_repository.FindByPhoneNumber(phone_number)
         if account is None:
             raise ValueError("账号不存在")
         return account
@@ -118,11 +136,11 @@ class TelegramService:
                     return enum_item
         return TelegramPeerType.UNKNOWN
 
-    def CreateAccount(self, phone_number: str, proxy_id: int | None, session_string: str | None) -> dict[str, Any]:
-        """创建托管账号。"""
-        if self._account_repository.ExistsByPhoneNumber(phone_number):
-            raise ValueError("手机号已存在")
+    # ========== Accounts 路径（PR #7 新增） ==========
 
+    async def CreateAccount(self, phone_number: str, proxy_id: int | None, session_string: str | None) -> dict[str, Any]:
+        if await self._account_repository.ExistsByPhoneNumber(phone_number):
+            raise ValueError("手机号已存在")
         account = TelegramAccount(
             phone_number=phone_number,
             session_string=session_string or "",
@@ -130,8 +148,8 @@ class TelegramService:
             is_active=True,
             is_online=False,
         )
-        self._account_repository.Save(account)
-        self._session.commit()
+        await self._account_repository.Save(account)
+        await self._session.commit()
         return {
             "account_id": int(account.id),
             "phone_number": account.phone_number,
@@ -139,9 +157,8 @@ class TelegramService:
             "is_online": bool(account.is_online),
         }
 
-    def ListManagedAccounts(self) -> list[dict[str, Any]]:
-        """获取托管账号列表。"""
-        accounts = self._account_repository.FindAll()
+    async def ListManagedAccounts(self) -> list[dict[str, Any]]:
+        accounts = await self._account_repository.FindAll()
         return [
             {
                 "account_id": int(account.id),
@@ -155,21 +172,20 @@ class TelegramService:
         ]
 
     async def RequestPhoneLoginCode(self, phone_number: str, proxy_id: int | None = None) -> dict[str, Any]:
-        """通过手机号请求验证码；若账号不存在则自动创建。"""
-        account = self._account_repository.FindByPhoneNumber(phone_number)
+        account = await self._account_repository.FindByPhoneNumber(phone_number)
         if account is None:
-            created = self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string="")
-            account = self._get_account_or_raise(int(created["account_id"]))
+            await self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string="")
+            account = await self._get_account_by_phone_or_raise(phone_number)
         elif proxy_id is not None:
             account.proxy_id = proxy_id
-            self._session.flush()
+            await self._session.flush()
 
         phone_code_hash = await self._telegram_adapter.RequestLoginCode(
             account_id=int(account.id),
             phone_number=account.phone_number,
             session_string=account.session_string or "",
         )
-        self._session.commit()
+        await self._session.commit()
         return {
             "account_id": int(account.id),
             "phone_number": account.phone_number,
@@ -181,8 +197,7 @@ class TelegramService:
         }
 
     async def VerifyPhoneLoginCode(self, account_id: int, phone_code_hash: str, code: str) -> dict[str, Any]:
-        """提交验证码并尝试登录；若需要二级密码则返回下一步。"""
-        account = self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id)
         signed_in, need_password = await self._telegram_adapter.SignInWithCode(
             account_id=int(account.id),
             session_string=account.session_string or "",
@@ -214,8 +229,7 @@ class TelegramService:
         }
 
     async def VerifyTwoFactorPassword(self, account_id: int, password: str) -> dict[str, Any]:
-        """提交二级密码完成登录。"""
-        account = self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id)
         await self._telegram_adapter.SignInWithPassword(
             account_id=int(account.id),
             session_string=account.session_string or "",
@@ -232,17 +246,16 @@ class TelegramService:
         }
 
     async def CreateAccountWithSessionLogin(self, phone_number: str, session_string: str, proxy_id: int | None = None) -> dict[str, Any]:
-        """通过 session 串直接接管账号并完成鉴权。"""
-        account = self._account_repository.FindByPhoneNumber(phone_number)
+        account = await self._account_repository.FindByPhoneNumber(phone_number)
         if account is None:
-            created = self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string=session_string)
-            account = self._get_account_or_raise(int(created["account_id"]))
+            await self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string=session_string)
+            account = await self._get_account_by_phone_or_raise(phone_number)
         else:
             account.session_string = session_string
             if proxy_id is not None:
                 account.proxy_id = proxy_id
             account.is_active = True
-            self._session.flush()
+            await self._session.flush()
 
         is_authorized = await self._telegram_adapter.IsAuthorized(
             account_id=int(account.id),
@@ -261,13 +274,12 @@ class TelegramService:
             "message": "账号通过 session 登录成功。",
         }
 
-    def SetAccountActive(self, account_id: int, is_active: bool) -> dict[str, Any]:
-        """启停账号（软删除基础能力）。"""
-        updated = self._account_repository.UpdateIsActiveById(account_id=account_id, is_active=is_active)
+    async def SetAccountActive(self, account_id: int, is_active: bool) -> dict[str, Any]:
+        updated = await self._account_repository.UpdateIsActiveById(account_id=account_id, is_active=is_active)
         if not updated:
             raise ValueError("账号不存在")
-        self._session.commit()
-        account = self._get_account_or_raise(account_id)
+        await self._session.commit()
+        account = await self._get_account_or_raise(account_id)
         return {
             "account_id": int(account.id),
             "phone_number": account.phone_number,
@@ -275,9 +287,8 @@ class TelegramService:
             "is_online": bool(account.is_online),
         }
 
-    def SoftDeleteAccount(self, account_id: int) -> dict[str, Any]:
-        """软删除账号：仅禁用，不清除历史数据。"""
-        result = self.SetAccountActive(account_id=account_id, is_active=False)
+    async def SoftDeleteAccount(self, account_id: int) -> dict[str, Any]:
+        result = await self.SetAccountActive(account_id=account_id, is_active=False)
         return {**result, "deleted": True}
 
     async def _refresh_account_online_profile(self, account: TelegramAccount) -> None:
@@ -294,121 +305,21 @@ class TelegramService:
         account.display_name = profile.get("display_name")
         account.is_online = True
         account.is_active = True
-        self._session.commit()
+        await self._session.commit()
 
-    def UpdateAccountSessionString(self, account_id: int, session_string: str) -> None:
-        account = self._get_account_or_raise(account_id)
+    async def UpdateAccountSessionString(self, account_id: int, session_string: str) -> None:
+        account = await self._get_account_or_raise(account_id)
         account.session_string = session_string
-        self._session.commit()
-
-    def _build_message_content(
-        self,
-        account_id: int,
-        content_type: MessageContentType | str | None,
-        content: str,
-        text_content: str | None,
-        media_type: MessageMediaType | str | None,
-        media_url: str | None,
-        media_key: str | None,
-        emoji: str | None,
-        caption: str | None,
-        media_items: list[dict[str, Any]] | None,
-        message_content_id: int | None,
-    ) -> tuple[MessageContent, list[MessageContentMedia]]:
-        if message_content_id is not None:
-            message_content = self._message_content_repository.FindById(message_content_id)
-            if message_content is None:
-                raise ValueError("消息内容不存在")
-            content_media_items = self._message_content_media_repository.FindAllByMessageContentIdOrderBySortOrderAsc(
-                message_content_id=int(message_content.id)
-            )
-            return message_content, content_media_items
-
-        normalized_content_type = self._normalize_content_type(content_type)
-        normalized_text_content = self._clean_optional_text(text_content) or self._clean_optional_text(content)
-        normalized_media_type = self._normalize_media_type(media_type)
-        normalized_media_url = self._clean_optional_text(media_url)
-        normalized_media_key = self._clean_optional_text(media_key)
-        normalized_emoji = self._clean_optional_text(emoji)
-        normalized_caption = self._clean_optional_text(caption)
-        message_content = MessageContent(
-            account_id=account_id,
-            content_type=normalized_content_type,
-            text_content=normalized_text_content,
-            media_type=normalized_media_type,
-            media_url=normalized_media_url,
-            media_key=normalized_media_key,
-            emoji=normalized_emoji,
-            caption=normalized_caption,
-            extra_json="{}",
-            is_active=True,
-        )
-        self._message_content_repository.Save(message_content)
-
-        normalized_media_items: list[dict[str, Any]] = []
-        if media_items:
-            for index, item in enumerate(media_items):
-                if not isinstance(item, dict):
-                    continue
-                normalized_media_items.append(
-                    {
-                        "media_type": self._normalize_media_type(item.get("media_type")) or MessageMediaType.FILE,
-                        "media_url": self._clean_optional_text(item.get("media_url")),
-                        "media_key": self._clean_optional_text(item.get("media_key")),
-                        "caption": self._clean_optional_text(item.get("caption")),
-                        "sort_order": int(item.get("sort_order") or index),
-                    }
-                )
-
-        if (normalized_media_url or normalized_media_key) and not normalized_media_items:
-            normalized_media_items.append(
-                {
-                    "media_type": normalized_media_type or MessageMediaType.FILE,
-                    "media_url": normalized_media_url,
-                    "media_key": normalized_media_key,
-                    "caption": normalized_caption,
-                    "sort_order": 0,
-                }
-            )
-
-        content_media_items: list[MessageContentMedia] = []
-        for item in normalized_media_items:
-            media_detail = MessageContentMedia(
-                message_content_id=int(message_content.id),
-                media_type=item["media_type"],
-                media_url=item["media_url"],
-                media_key=item["media_key"],
-                caption=item["caption"],
-                sort_order=item["sort_order"],
-            )
-            self._message_content_media_repository.Save(media_detail)
-            content_media_items.append(media_detail)
-
-        return message_content, content_media_items
-
-    def _create_send_attempt(self, telegram_message_id: int, attempt_no: int) -> TelegramMessageSendAttempt:
-        attempt = TelegramMessageSendAttempt(
-            telegram_message_id=telegram_message_id,
-            attempt_no=attempt_no,
-            status=MessageAttemptStatus.SENDING,
-            telegram_message_id_value=None,
-            error_message=None,
-            started_at=datetime.utcnow(),
-            finished_at=None,
-            duration_ms=0,
-        )
-        self._message_send_attempt_repository.Save(attempt)
-        return attempt
+        await self._session.commit()
 
     async def EnsureAccountOnline(self, account_id: int) -> dict[str, Any]:
-        """检查账号授权并刷新在线状态。"""
-        account = self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id)
         is_authorized = await self._telegram_adapter.IsAuthorized(
             account_id=int(account.id),
             session_string=account.session_string,
         )
         account.is_online = bool(is_authorized)
-        self._session.commit()
+        await self._session.commit()
         return {
             "account_id": int(account.id),
             "is_online": bool(account.is_online),
@@ -416,8 +327,7 @@ class TelegramService:
         }
 
     async def ListConversations(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
-        """获取指定账号的会话列表。"""
-        account = self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id)
         return await self._telegram_adapter.ListDialogs(
             account_id=int(account.id),
             session_string=account.session_string,
@@ -425,8 +335,7 @@ class TelegramService:
         )
 
     async def ListMessages(self, account_id: int, target_identifier: str, limit: int = 50) -> list[dict[str, Any]]:
-        """获取指定目标会话消息，并补录到会话消息主表。"""
-        account = self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id)
         messages = await self._telegram_adapter.ListMessages(
             account_id=int(account.id),
             session_string=account.session_string,
@@ -440,7 +349,7 @@ class TelegramService:
             if telegram_message_id <= 0:
                 continue
 
-            existed = self._message_repository.FindByAccountIdAndConversationPeerAndTelegramMessageId(
+            existed = await self._message_repository.FindByAccountIdAndConversationPeerAndTelegramMessageId(
                 account_id=int(account.id),
                 conversation_peer=target_identifier,
                 telegram_message_id=telegram_message_id,
@@ -495,14 +404,114 @@ class TelegramService:
                 sent_at=message_at if direction == MessageDirection.OUT else None,
                 message_at=message_at,
             )
-            self._message_repository.Save(message_record)
+            await self._message_repository.Save(message_record)
 
-        self._session.commit()
+        await self._session.commit()
         return messages
 
-    def ListSendRecords(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
-        """获取发送记录（仅 direction=out）。"""
-        records = self._message_repository.FindAllByAccountIdAndDirectionOrderByIdDesc(
+    # ========== Messages 路径（PR #5 保留） ==========
+
+    async def _build_message_content(
+        self,
+        account_id: int,
+        content_type: MessageContentType | str | None,
+        content: str,
+        text_content: str | None,
+        media_type: MessageMediaType | str | None,
+        media_url: str | None,
+        media_key: str | None,
+        emoji: str | None,
+        caption: str | None,
+        media_items: list[dict[str, Any]] | None,
+        message_content_id: int | None,
+    ) -> tuple[MessageContent, list[MessageContentMedia]]:
+        if message_content_id is not None:
+            message_content = await self._message_content_repository.FindById(message_content_id)
+            if message_content is None:
+                raise ValueError("消息内容不存在")
+            content_media_items = await self._message_content_media_repository.FindAllByMessageContentIdOrderBySortOrderAsc(
+                message_content_id=int(message_content.id)
+            )
+            return message_content, content_media_items
+
+        normalized_content_type = self._normalize_content_type(content_type)
+        normalized_text_content = self._clean_optional_text(text_content) or self._clean_optional_text(content)
+        normalized_media_type = self._normalize_media_type(media_type)
+        normalized_media_url = self._clean_optional_text(media_url)
+        normalized_media_key = self._clean_optional_text(media_key)
+        normalized_emoji = self._clean_optional_text(emoji)
+        normalized_caption = self._clean_optional_text(caption)
+        message_content = MessageContent(
+            account_id=account_id,
+            content_type=normalized_content_type,
+            text_content=normalized_text_content,
+            media_type=normalized_media_type,
+            media_url=normalized_media_url,
+            media_key=normalized_media_key,
+            emoji=normalized_emoji,
+            caption=normalized_caption,
+            extra_json="{}",
+            is_active=True,
+        )
+        await self._message_content_repository.Save(message_content)
+
+        normalized_media_items: list[dict[str, Any]] = []
+        if media_items:
+            for index, item in enumerate(media_items):
+                if not isinstance(item, dict):
+                    continue
+                normalized_media_items.append(
+                    {
+                        "media_type": self._normalize_media_type(item.get("media_type")) or MessageMediaType.FILE,
+                        "media_url": self._clean_optional_text(item.get("media_url")),
+                        "media_key": self._clean_optional_text(item.get("media_key")),
+                        "caption": self._clean_optional_text(item.get("caption")),
+                        "sort_order": int(item.get("sort_order") or index),
+                    }
+                )
+
+        if (normalized_media_url or normalized_media_key) and not normalized_media_items:
+            normalized_media_items.append(
+                {
+                    "media_type": normalized_media_type or MessageMediaType.FILE,
+                    "media_url": normalized_media_url,
+                    "media_key": normalized_media_key,
+                    "caption": normalized_caption,
+                    "sort_order": 0,
+                }
+            )
+
+        content_media_items: list[MessageContentMedia] = []
+        for item in normalized_media_items:
+            media_detail = MessageContentMedia(
+                message_content_id=int(message_content.id),
+                media_type=item["media_type"],
+                media_url=item["media_url"],
+                media_key=item["media_key"],
+                caption=item["caption"],
+                sort_order=item["sort_order"],
+            )
+            await self._message_content_media_repository.Save(media_detail)
+            content_media_items.append(media_detail)
+
+        return message_content, content_media_items
+
+    async def _create_send_attempt(self, telegram_message_id: int, attempt_no: int) -> TelegramMessageSendAttempt:
+        attempt = TelegramMessageSendAttempt(
+            telegram_message_id=telegram_message_id,
+            attempt_no=attempt_no,
+            status=MessageAttemptStatus.SENDING,
+            telegram_message_id_value=None,
+            error_message=None,
+            started_at=datetime.utcnow(),
+            finished_at=None,
+            duration_ms=0,
+        )
+        await self._message_send_attempt_repository.Save(attempt)
+        return attempt
+
+    async def ListSendRecords(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
+        records = await self._message_repository.FindAllByAccountIdAndDirectionOrderByIdDesc(
             account_id=account_id,
             direction=MessageDirection.OUT,
             limit=limit,
@@ -547,10 +556,9 @@ class TelegramService:
         message_content_id: int | None = None,
         task_execution_log_id: int | None = None,
     ) -> dict[str, Any]:
-        """发送消息并记录主消息、媒体明细与发送尝试。"""
-        account = self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id)
         conversation_id: int | None = int(target_identifier) if target_identifier.isdigit() else None
-        message_content, content_media_items = self._build_message_content(
+        message_content, content_media_items = await self._build_message_content(
             account_id=int(account.id),
             content_type=content_type,
             content=content,
@@ -594,8 +602,8 @@ class TelegramService:
             sent_at=None,
             message_at=datetime.utcnow(),
         )
-        self._message_repository.Save(message_record)
-        self._session.flush()
+        await self._message_repository.Save(message_record)
+        await self._session.flush()
 
         send_media_items = list(content_media_items)
         if not send_media_items and (message_content.media_url or message_content.media_key):
@@ -615,11 +623,11 @@ class TelegramService:
 
         if send_media_items:
             for index, media_item in enumerate(send_media_items, start=1):
-                attempt = self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=index)
+                attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=index)
                 try:
                     sent_result = await self._telegram_adapter.SendMessage(
                         account_id=int(account.id),
-                        session_string=account.session_string,
+                        session_string=account.session_string or "",
                         target_identifier=target_identifier,
                         content=send_text,
                         media_url=media_item.media_url or media_item.media_key,
@@ -658,7 +666,7 @@ class TelegramService:
                         telegram_media_id=str(sent_id) if sent_id > 0 else "",
                         sort_order=media_item.sort_order,
                     )
-                    self._message_media_repository.Save(message_media)
+                    await self._message_media_repository.Save(message_media)
 
                     attempt.status = MessageAttemptStatus.SENT
                     attempt.telegram_message_id_value = sent_id if sent_id > 0 else None
@@ -674,11 +682,11 @@ class TelegramService:
                 if failure_error:
                     break
         else:
-            attempt = self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=1)
+            attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=1)
             try:
                 sent_result = await self._telegram_adapter.SendMessage(
                     account_id=int(account.id),
-                    session_string=account.session_string,
+                    session_string=account.session_string or "",
                     target_identifier=target_identifier,
                     content=send_text,
                 )
@@ -727,7 +735,7 @@ class TelegramService:
             message_record.sent_at = datetime.utcnow()
 
         message_record.message_at = datetime.utcnow()
-        self._session.commit()
+        await self._session.commit()
 
         return {
             "account_id": int(account.id),

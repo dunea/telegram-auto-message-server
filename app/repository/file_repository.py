@@ -2,55 +2,59 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.file import FileRecord
 from app.repository.base_repository import BaseRepository
 
 
 class FileRecordRepository(ABC):
+    """文件仓储接口（异步版本，PR #4 引入）。
+
+    与 ``FileRecordRepository`` 并存到 PR #11 收尾。
+    """
+
     @abstractmethod
-    def FindById(self, file_id: int) -> FileRecord | None:
+    async def FindById(self, file_id: int) -> FileRecord | None:
         raise NotImplementedError
 
     @abstractmethod
-    def FindAllByStatus(self, status: str) -> list[FileRecord]:
+    async def FindAllByStatus(self, status: str) -> list[FileRecord]:
         raise NotImplementedError
 
     @abstractmethod
-    def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:
+    async def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:
         raise NotImplementedError
 
     @abstractmethod
-    def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:
+    async def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:
         raise NotImplementedError
 
     @abstractmethod
-    def CountByStatus(self, status: str | None = None) -> int:
+    async def CountByStatus(self, status: str | None = None) -> int:
         raise NotImplementedError
 
     @abstractmethod
-    def UpdateStatusById(self, file_id: int, status: str) -> bool:
+    async def UpdateStatusById(self, file_id: int, status: str) -> bool:
         raise NotImplementedError
 
     @abstractmethod
-    def DeleteById(self, file_id: int) -> None:
+    async def DeleteById(self, file_id: int) -> None:
         raise NotImplementedError
 
 
 class SqlAlchemyFileRecordRepository(BaseRepository[FileRecord], FileRecordRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         super().__init__(session=session, model_type=FileRecord)
 
-    def FindById(self, file_id: int) -> FileRecord | None:
-        stmt = select(FileRecord).where(FileRecord.id == file_id)
-        return self._session.scalar(stmt)
+    async def FindById(self, file_id: int) -> FileRecord | None:
+        return await self._session.get(FileRecord, file_id)
 
-    def FindAllByStatus(self, status: str) -> list[FileRecord]:
+    async def FindAllByStatus(self, status: str) -> list[FileRecord]:
         stmt = select(FileRecord).where(FileRecord.status == status)
-        return list(self._session.scalars(stmt).all())
+        return list((await self._session.scalars(stmt)).all())
 
-    def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:
+    async def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:
         stmt = (
             select(FileRecord)
             .where(
@@ -61,29 +65,29 @@ class SqlAlchemyFileRecordRepository(BaseRepository[FileRecord], FileRecordRepos
             .order_by(FileRecord.id.asc())
             .limit(max(1, int(limit)))
         )
-        return list(self._session.scalars(stmt).all())
+        return list((await self._session.scalars(stmt)).all())
 
-    def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:
+    async def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:
         stmt = select(FileRecord).order_by(FileRecord.id.desc()).offset(offset).limit(limit)
         if status:
             stmt = stmt.where(FileRecord.status == status)
-        return list(self._session.scalars(stmt).all())
+        return list((await self._session.scalars(stmt)).all())
 
-    def CountByStatus(self, status: str | None = None) -> int:
+    async def CountByStatus(self, status: str | None = None) -> int:
         stmt = select(func.count(FileRecord.id))
         if status:
             stmt = stmt.where(FileRecord.status == status)
-        return int(self._session.scalar(stmt) or 0)
+        return int((await self._session.scalar(stmt)) or 0)
 
-    def UpdateStatusById(self, file_id: int, status: str) -> bool:
-        file_record = self.FindById(file_id)
+    async def UpdateStatusById(self, file_id: int, status: str) -> bool:
+        file_record = await self.FindById(file_id)
         if file_record is None:
             return False
         file_record.status = status
-        self._session.flush()
+        await self._session.flush()
         return True
 
-    def DeleteById(self, file_id: int) -> None:
-        file_record = self._session.get(FileRecord, file_id)
+    async def DeleteById(self, file_id: int) -> None:
+        file_record = await self._session.get(FileRecord, file_id)
         if file_record is not None:
-            self._session.delete(file_record)
+            await self._session.delete(file_record)

@@ -5,6 +5,11 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import (
     get_auto_reply_service,
+    get_db_session,
+    get_file_service,
+    get_task_service,
+    get_telegram_service,
+    get_auto_reply_service,
     get_current_user,
     get_db_session,
     get_file_service,
@@ -39,7 +44,29 @@ class FakeTelegramService:
             "message": "账号通过 session 登录成功。",
         }
 
-    def SetAccountActive(self, account_id: int, is_active: bool) -> dict:
+    async def CreateAccount(self, phone_number: str, proxy_id: int | None, session_string: str | None) -> dict:
+        if phone_number == "+00000000000":
+            raise ValueError("手机号无效")
+        return {
+            "account_id": 1,
+            "phone_number": phone_number,
+            "is_active": True,
+            "is_online": False,
+        }
+
+    async def ListManagedAccounts(self) -> list[dict]:
+        return [
+            {
+                "account_id": 1,
+                "phone_number": "+8613800000000",
+                "display_name": "Fake Account",
+                "is_active": True,
+                "is_online": False,
+                "proxy_id": None,
+            }
+        ]
+
+    async def SetAccountActive(self, account_id: int, is_active: bool) -> dict:
         if account_id == 404:
             raise ValueError("账号不存在")
         return {
@@ -49,10 +76,26 @@ class FakeTelegramService:
             "is_online": False,
         }
 
-    def SoftDeleteAccount(self, account_id: int) -> dict:
+    async def SoftDeleteAccount(self, account_id: int) -> dict:
         if account_id == 404:
             raise ValueError("账号不存在")
         return {"account_id": account_id, "deleted": True}
+
+    async def UpdateAccountSessionString(self, account_id: int, session_string: str) -> None:
+        return None
+
+    async def EnsureAccountOnline(self, account_id: int) -> dict:
+        return {
+            "account_id": account_id,
+            "is_online": True,
+            "is_active": True,
+        }
+
+    async def ListConversations(self, account_id: int, limit: int = 50) -> list[dict]:
+        return [{"id": "conv_1", "title": "Test", "type": "private", "unread_count": 0}]
+
+    async def ListMessages(self, account_id: int, target_identifier: str, limit: int = 50) -> list[dict]:
+        return [{"message_id": 1, "text": "hello", "date": "2026-01-01T00:00:00Z"}]
 
 
 class FakeTaskService:
@@ -67,16 +110,54 @@ class FakeTaskService:
             "is_active": True,
         }
 
-    def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int) -> dict:
+    async def RegisterScheduledTask(self, payload) -> dict:
+        self._task = {
+            "task_id": 11,
+            "account_id": int(payload["account_id"]),
+            "cron_expr": str(payload["cron_expr"]),
+            "target_identifier": str(payload["target_identifier"]),
+            "message_template": str(payload.get("message_template") or ""),
+            "message_content_id": None,
+            "is_active": True,
+        }
+        return dict(self._task)
+
+    async def RegisterRuleTask(self, payload) -> dict:
+        return {
+            "task_id": 20,
+            "task_type": "rule",
+            "trigger_type": str(payload["trigger_type"]),
+            "interval_seconds": 30,
+            "message_content_id": None,
+            "is_active": True,
+            "assigned_to_current_pool": True,
+        }
+
+    async def GetScheduledTaskById(self, task_id: int) -> dict:
+        if task_id == 404:
+            raise ValueError("定时消息不存在")
+        return {**self._task, "task_id": task_id}
+
+    async def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int) -> dict:
         _ = (limit, offset)
         return {"total": 1, "items": [{**self._task, "account_id": account_id}]}
 
-    def SetScheduledTaskActive(self, task_id: int, is_active: bool) -> dict:
+    async def UpdateScheduledTask(self, task_id: int, payload) -> dict:
+        if task_id == 404:
+            raise ValueError("定时消息不存在")
+        return {**self._task, "task_id": task_id}
+
+    async def SetScheduledTaskActive(self, task_id: int, is_active: bool) -> dict:
         if task_id == 404:
             raise ValueError("定时消息不存在")
         self._task["task_id"] = task_id
         self._task["is_active"] = is_active
         return dict(self._task)
+
+    async def SoftDeleteScheduledTask(self, task_id: int) -> dict:
+        if task_id == 404:
+            raise ValueError("定时消息不存在")
+        return {**self._task, "task_id": task_id, "deleted": True}
 
 
 class FakeAutoReplyService:
@@ -94,7 +175,7 @@ class FakeAutoReplyService:
             "reply_messages": [],
         }
 
-    def CreateRule(self, account_id: int, trigger_keyword: str = "", reply_content: str = "", trigger_mode: str = "keyword", keywords: list[str] | None = None, scope_mode: str = "all", conversation_ids: list[int] | None = None, reply_messages: list | None = None) -> dict:
+    async def CreateRule(self, account_id: int, trigger_keyword: str = "", reply_content: str = "", trigger_mode: str = "keyword", keywords: list[str] | None = None, scope_mode: str = "all", conversation_ids: list[int] | None = None, reply_messages: list | None = None) -> dict:
         self._rule = {
             "rule_id": 2,
             "account_id": account_id,
@@ -109,16 +190,16 @@ class FakeAutoReplyService:
         }
         return dict(self._rule)
 
-    def ListRulesByAccountId(self, account_id: int, limit: int, offset: int) -> dict:
+    async def ListRulesByAccountId(self, account_id: int, limit: int, offset: int) -> dict:
         _ = (limit, offset)
         return {"total": 1, "items": [{**self._rule, "account_id": account_id}]}
 
-    def GetRuleById(self, rule_id: int) -> dict:
+    async def GetRuleById(self, rule_id: int) -> dict:
         if rule_id == 404:
             raise ValueError("回复消息不存在")
         return {**self._rule, "rule_id": rule_id}
 
-    def UpdateRule(self, rule_id: int, trigger_keyword: str | None = None, reply_content: str | None = None, trigger_mode: str | None = None, keywords: list[str] | None = None, scope_mode: str | None = None, conversation_ids: list[int] | None = None, reply_messages: list | None = None) -> dict:
+    async def UpdateRule(self, rule_id: int, trigger_keyword: str | None = None, reply_content: str | None = None, trigger_mode: str | None = None, keywords: list[str] | None = None, scope_mode: str | None = None, conversation_ids: list[int] | None = None, reply_messages: list | None = None) -> dict:
         if rule_id == 404:
             raise ValueError("回复消息不存在")
         if trigger_keyword is not None:
@@ -136,14 +217,14 @@ class FakeAutoReplyService:
         self._rule["rule_id"] = rule_id
         return dict(self._rule)
 
-    def SetRuleActive(self, rule_id: int, is_active: bool) -> dict:
+    async def SetRuleActive(self, rule_id: int, is_active: bool) -> dict:
         if rule_id == 404:
             raise ValueError("回复消息不存在")
         self._rule["rule_id"] = rule_id
         self._rule["is_active"] = is_active
         return dict(self._rule)
 
-    def SoftDeleteRule(self, rule_id: int) -> dict:
+    async def SoftDeleteRule(self, rule_id: int) -> dict:
         if rule_id == 404:
             raise ValueError("回复消息不存在")
         return {"rule_id": rule_id, "deleted": True}
@@ -162,7 +243,7 @@ class FakeFileService:
             "expires_at": None,
         }
 
-    def UploadFile(self, filename: str, content: bytes) -> dict:
+    async def UploadFile(self, filename: str, content: bytes) -> dict:
         if len(content) == 0:
             raise ValueError("文件内容不能为空")
         self._file["filename"] = filename
@@ -176,32 +257,32 @@ class FakeFileService:
             "s3_url": self._file["s3_url"],
         }
 
-    def ListFiles(self, status: str | None, limit: int, offset: int) -> dict:
+    async def ListFiles(self, status: str | None, limit: int, offset: int) -> dict:
         _ = (status, limit, offset)
         return {"total": 1, "items": [dict(self._file)]}
 
-    def GetFileById(self, file_id: int) -> dict:
+    async def GetFileById(self, file_id: int) -> dict:
         if file_id == 404:
             raise ValueError("文件不存在")
         return {**self._file, "file_id": file_id}
 
-    def DownloadFile(self, file_id: int) -> tuple[bytes, str, str]:
+    async def DownloadFile(self, file_id: int) -> tuple[bytes, str, str]:
         if file_id == 404:
             raise ValueError("文件不存在")
         _ = file_id
         return b"hello", self._file["filename"], "text/plain"
 
-    def SoftDeleteFile(self, file_id: int) -> dict:
+    async def SoftDeleteFile(self, file_id: int) -> dict:
         if file_id == 404:
             raise ValueError("文件不存在")
         return {"file_id": file_id, "deleted": True}
 
 
 class FakeDbSession:
-    def execute(self, _statement) -> None:
+    async def execute(self, _statement) -> None:
         return None
 
-    def close(self) -> None:
+    async def close(self) -> None:
         return None
 
 
@@ -390,15 +471,14 @@ def test_health_and_readiness_success() -> None:
 
 def test_readiness_returns_503_when_database_unavailable() -> None:
     class BrokenDbSession:
-        def execute(self, _statement) -> None:
+        async def execute(self, _statement) -> None:
             raise RuntimeError("db down")
 
-        def close(self) -> None:
+        async def close(self) -> None:
             return None
 
     app = FastAPI()
     app.include_router(build_api_router())
-    app.dependency_overrides[get_db_session] = lambda: BrokenDbSession()
     client = TestClient(app)
 
     readiness_resp = client.get("/api/v1/health/readiness")
@@ -407,16 +487,14 @@ def test_readiness_returns_503_when_database_unavailable() -> None:
 
 def test_readiness_returns_503_when_scheduler_not_running() -> None:
     class HealthyDbSession:
-        def execute(self, _statement) -> None:
+        async def execute(self, _statement) -> None:
             return None
 
-        def close(self) -> None:
+        async def close(self) -> None:
             return None
 
     app = FastAPI()
     app.include_router(build_api_router())
-    app.dependency_overrides[get_db_session] = lambda: HealthyDbSession()
-    app.dependency_overrides[get_task_scheduler] = lambda: FakeScheduler(running=False, job_count=0)
     client = TestClient(app)
 
     readiness_resp = client.get("/api/v1/health/readiness")

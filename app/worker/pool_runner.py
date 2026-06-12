@@ -5,10 +5,15 @@ import random
 from datetime import datetime
 from time import perf_counter
 
-from app.adapter.mysql_adapter import build_session_factory
+from app.adapter.mysql_adapter import build_session_factory, build_session_factory
 from app.adapter.telegram_adapter import TelegramAdapter
-from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
+from app.repository.account_repository import SqlAlchemyTelegramAccountRepository, SqlAlchemyTelegramAccountRepository
 from app.repository.message_repository import (
+    SqlAlchemyMessageContentMediaRepository,
+    SqlAlchemyMessageContentRepository,
+    SqlAlchemyTelegramMessageMediaRepository,
+    SqlAlchemyTelegramMessageRepository,
+    SqlAlchemyTelegramMessageSendAttemptRepository,
     SqlAlchemyMessageContentMediaRepository,
     SqlAlchemyMessageContentRepository,
     SqlAlchemyTelegramMessageMediaRepository,
@@ -19,10 +24,13 @@ from app.repository.task_repository import (
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
     SqlAlchemyTaskExecutionLogRepository,
+    SqlAlchemyRuleMessageTaskRepository,
+    SqlAlchemyScheduledMessageTaskRepository,
+    SqlAlchemyTaskExecutionLogRepository,
 )
 from app.repository.file_repository import SqlAlchemyFileRecordRepository
 from app.service.file_service import FileService
-from app.service.task_service import TaskService
+from app.service.task_service import TaskService, TaskService
 from app.service.telegram_service import TelegramService
 from app.adapter.s3_adapter import S3Adapter
 from app.worker.task_scheduler import TaskScheduler
@@ -92,8 +100,7 @@ class PoolRunner:
         return stable_id % total_shards == shard_index
 
     async def _reload_sharded_tasks(self) -> None:
-        session = self._session_factory()
-        try:
+        async with self._session_factory() as session:
             message_content_repository = SqlAlchemyMessageContentRepository(session)
             message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
             scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
@@ -111,14 +118,11 @@ class PoolRunner:
                 rule_task_repository=rule_task_repository,
                 task_execution_log_repository=task_execution_log_repository,
             )
-            task_service.ReloadActiveTasksToScheduler()
-        finally:
-            session.close()
+            await task_service.ReloadActiveTasksToScheduler()
 
     async def _cleanup_expired_files(self) -> None:
         """执行一轮过期文件清理。"""
-        session = self._session_factory()
-        try:
+        async with self._session_factory() as session:
             file_repository = SqlAlchemyFileRecordRepository(session)
             file_service = FileService(
                 settings=self._settings,
@@ -126,14 +130,12 @@ class PoolRunner:
                 file_record_repository=file_repository,
                 s3_adapter=S3Adapter(settings=self._settings),
             )
-            result = file_service.CleanupExpiredFiles()
+            result = await file_service.CleanupExpiredFiles()
             self._log_event(
                 "file_cleanup_completed",
                 cleaned=int(result.get("cleaned", 0)),
                 s3_delete_failed=int(result.get("s3_delete_failed", 0)),
             )
-        finally:
-            session.close()
 
     def _register_system_jobs(self) -> None:
         """注册系统级周期任务。"""
@@ -156,8 +158,7 @@ class PoolRunner:
             non_retryable_fail_count = 0
 
             for attempt in range(1, max_retries + 1):
-                session = self._session_factory()
-                try:
+                async with self._session_factory() as session:
                     account_repository = SqlAlchemyTelegramAccountRepository(session)
                     message_content_repository = SqlAlchemyMessageContentRepository(session)
                     message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
@@ -175,55 +176,54 @@ class PoolRunner:
                         message_send_attempt_repository=message_send_attempt_repository,
                         telegram_adapter=self._telegram_adapter,
                     )
-                    result = await telegram_service.EnsureAccountOnline(account_id=account_id)
-                    self._log_event(
-                        "account_login_checked",
-                        account_id=account_id,
-                        attempt=attempt,
-                        is_online=bool(result.get("is_online")),
-                    )
-                    return {
-                        "ok": True,
-                        "online": bool(result.get("is_online")),
-                        "retry_count": retry_count,
-                        "timeout_fail_count": timeout_fail_count,
-                        "non_retryable_fail_count": non_retryable_fail_count,
-                    }
-                except Exception as exc:
-                    error_class, retryable, is_timeout = classify_exception(exc)
-                    if is_timeout:
-                        timeout_fail_count += 1
-                    if not retryable:
-                        non_retryable_fail_count += 1
-
-                    will_retry = retryable and attempt < max_retries
-                    self._log_event(
-                        "account_login_failed",
-                        level="WARNING" if will_retry else "ERROR",
-                        account_id=account_id,
-                        attempt=attempt,
-                        max_retries=max_retries,
-                        will_retry=will_retry,
-                        retryable=retryable,
-                        error_class=str(error_class),
-                        error=str(exc),
-                    )
-                    if will_retry:
-                        retry_count += 1
-                        jitter_seconds = random.randint(0, jitter_ms) / 1000 if jitter_ms else 0
-                        next_backoff_seconds = (base_backoff * (2 ** (attempt - 1))) + jitter_seconds
+                    try:
+                        result = await telegram_service.EnsureAccountOnline(account_id=account_id)
                         self._log_event(
-                            "account_login_retry_scheduled",
+                            "account_login_checked",
                             account_id=account_id,
                             attempt=attempt,
-                            retry_count=retry_count,
-                            next_backoff_seconds=round(next_backoff_seconds, 3),
+                            is_online=bool(result.get("is_online")),
                         )
-                        await asyncio.sleep(next_backoff_seconds)
-                    else:
-                        break
-                finally:
-                    session.close()
+                        return {
+                            "ok": True,
+                            "online": bool(result.get("is_online")),
+                            "retry_count": retry_count,
+                            "timeout_fail_count": timeout_fail_count,
+                            "non_retryable_fail_count": non_retryable_fail_count,
+                        }
+                    except Exception as exc:
+                        error_class, retryable, is_timeout = classify_exception(exc)
+                        if is_timeout:
+                            timeout_fail_count += 1
+                        if not retryable:
+                            non_retryable_fail_count += 1
+
+                        will_retry = retryable and attempt < max_retries
+                        self._log_event(
+                            "account_login_failed",
+                            level="WARNING" if will_retry else "ERROR",
+                            account_id=account_id,
+                            attempt=attempt,
+                            max_retries=max_retries,
+                            will_retry=will_retry,
+                            retryable=retryable,
+                            error_class=str(error_class),
+                            error=str(exc),
+                        )
+                        if will_retry:
+                            retry_count += 1
+                            jitter_seconds = random.randint(0, jitter_ms) / 1000 if jitter_ms else 0
+                            next_backoff_seconds = (base_backoff * (2 ** (attempt - 1))) + jitter_seconds
+                            self._log_event(
+                                "account_login_retry_scheduled",
+                                account_id=account_id,
+                                attempt=attempt,
+                                retry_count=retry_count,
+                                next_backoff_seconds=round(next_backoff_seconds, 3),
+                            )
+                            await asyncio.sleep(next_backoff_seconds)
+                        else:
+                            break
 
             return {
                 "ok": False,
@@ -242,10 +242,9 @@ class PoolRunner:
         """
         self._assert_shard_guard()
         started_at = perf_counter()
-        session = self._session_factory()
-        try:
+        async with self._session_factory() as session:
             account_repository = SqlAlchemyTelegramAccountRepository(session)
-            active_accounts = account_repository.FindAllByIsActive(True)
+            active_accounts = await account_repository.FindAllByIsActive(True)
 
             sharded_accounts = [
                 account
@@ -305,8 +304,6 @@ class PoolRunner:
                 consecutive_degraded_rounds=self._consecutive_degraded_rounds,
                 degraded=is_degraded,
             )
-        finally:
-            session.close()
 
     async def run_forever(self) -> None:
         await self._task_scheduler.Start()

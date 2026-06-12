@@ -7,10 +7,17 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
 
-from app.api.deps import get_s3_adapter, get_session_factory, get_task_scheduler
+from app.api.deps import (
+    get_session_factory,
+    get_s3_adapter,
+    get_task_scheduler,
+)
 from app.api.router import build_api_router
 from app.config import Settings
-from app.repository.message_repository import SqlAlchemyMessageContentMediaRepository, SqlAlchemyMessageContentRepository
+from app.repository.message_repository import (
+    SqlAlchemyMessageContentMediaRepository,
+    SqlAlchemyMessageContentRepository,
+)
 from app.repository.task_repository import (
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
@@ -45,12 +52,11 @@ def register_global_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})
 
 
-def _reload_active_tasks_to_scheduler(settings: Settings) -> None:
-    """重载激活任务到调度器。"""
+async def _reload_active_tasks_to_scheduler(settings: Settings) -> None:
+    """重载激活任务到调度器（async 版本，PR #8 改造）。"""
     session_factory = get_session_factory()
     scheduler = get_task_scheduler()
-    session = session_factory()
-    try:
+    async with session_factory() as session:
         message_content_repository = SqlAlchemyMessageContentRepository(session)
         message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
         scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
@@ -68,9 +74,7 @@ def _reload_active_tasks_to_scheduler(settings: Settings) -> None:
             rule_task_repository=rule_task_repository,
             task_execution_log_repository=task_execution_log_repository,
         )
-        task_service.ReloadActiveTasksToScheduler()
-    finally:
-        session.close()
+        await task_service.ReloadActiveTasksToScheduler()
 
 
 def _register_file_cleanup_job(settings: Settings) -> None:
@@ -80,8 +84,7 @@ def _register_file_cleanup_job(settings: Settings) -> None:
 
     async def _cleanup_callback() -> None:
         session_factory = get_session_factory()
-        session = session_factory()
-        try:
+        async with session_factory() as session:
             file_repository = SqlAlchemyFileRecordRepository(session)
             file_service = FileService(
                 settings=settings,
@@ -89,10 +92,8 @@ def _register_file_cleanup_job(settings: Settings) -> None:
                 file_record_repository=file_repository,
                 s3_adapter=get_s3_adapter(),
             )
-            result = file_service.CleanupExpiredFiles()
+            result = await file_service.CleanupExpiredFiles()
             logger.info("file_cleanup_completed cleaned=%s s3_delete_failed=%s", result["cleaned"], result["s3_delete_failed"])
-        finally:
-            session.close()
 
     scheduler.AddOrReplaceIntervalJob(
         job_id="system:file_cleanup",
@@ -108,11 +109,13 @@ def create_api_application(settings: Settings) -> FastAPI:
         scheduler = get_task_scheduler()
         await scheduler.Start()
         try:
-            _reload_active_tasks_to_scheduler(settings)
+            await _reload_active_tasks_to_scheduler(settings)
             _register_file_cleanup_job(settings)
             yield
         finally:
             await scheduler.Shutdown()
+            from app.adapter.mysql_adapter import dispose_engine
+            await dispose_engine()
 
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
     register_global_exception_handlers(app)

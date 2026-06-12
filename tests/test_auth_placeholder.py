@@ -12,7 +12,7 @@ from app.api.router import build_api_router
 class FakeAuthService:
     """用于 users 路由测试的伪认证服务。"""
 
-    def RegisterUser(self, email: str, password: str) -> dict:
+    async def RegisterUser(self, email: str, password: str) -> dict:
         _ = password
         return {
             "user_id": 1,
@@ -20,7 +20,7 @@ class FakeAuthService:
             "is_active": True,
         }
 
-    def LoginUser(self, email: str, password: str) -> dict:
+    async def LoginUser(self, email: str, password: str) -> dict:
         _ = (email, password)
         return {
             "access_token": "fake-access-token",
@@ -29,7 +29,7 @@ class FakeAuthService:
             "expires_in_seconds": 3600,
         }
 
-    def RefreshAccessToken(self, refresh_token: str) -> dict:
+    async def RefreshAccessToken(self, refresh_token: str) -> dict:
         if refresh_token == "bad-refresh-token":
             raise ValueError("无效或过期的访问令牌")
         return {
@@ -43,6 +43,7 @@ class FakeAuthService:
 def _build_client_for_user_routes() -> TestClient:
     app = FastAPI()
     app.include_router(build_api_router())
+    app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
     app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, email="demo@example.com", is_active=True)
     return TestClient(app)

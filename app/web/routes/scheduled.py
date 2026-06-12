@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session, get_task_service
 from app.models.account import TelegramAccount
@@ -23,23 +23,37 @@ async def list_scheduled_tasks(
     request: Request,
     account_id: int | None = None,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     task_service: TaskService = Depends(get_task_service),
 ):
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
     accounts_map = {acc.id: acc for acc in accounts}
     
     # 账号过滤，如果 account_id 为0或空，表示无过滤
     actual_account_id = account_id if account_id and account_id > 0 else None
     
     if actual_account_id:
-        tasks_data = task_service.ListScheduledTasksByAccountId(account_id=actual_account_id, limit=100, offset=0)
+        tasks_data = await task_service.ListScheduledTasksByAccountId(account_id=actual_account_id, limit=100, offset=0)
         tasks_list = tasks_data["items"]
     else:
         # 获取全局所有定时发送任务汇总
         stmt = select(ScheduledMessageTask).order_by(ScheduledMessageTask.id.desc())
-        tasks = db_session.scalars(stmt).all()
-        tasks_list = [task_service._to_scheduled_task_dict(t) for t in tasks]
+        tasks = (await db_session.scalars(stmt))
+        tasks_list = [
+            {
+                "task_id": int(t.id),
+                "account_id": int(t.account_id),
+                "cron_expr": t.cron_expr,
+                "target_identifier": t.target_identifier,
+                "message_template": t.message_template or "",
+                "message_content_id": t.message_content_id,
+                "is_active": bool(t.is_active),
+                "scope_mode": t.scope_mode,
+                "conversation_ids": t.conversation_ids,
+                "message_ids": t.message_ids,
+            }
+            for t in tasks
+        ]
         
     return templates.TemplateResponse("scheduled/list.html", {
         "request": request,
@@ -55,11 +69,11 @@ async def list_scheduled_tasks(
 async def new_scheduled_page(
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
 ):
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
-    files = db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded")).all()
-    
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
+
     return templates.TemplateResponse("scheduled/form.html", {
         "request": request,
         "user_id": user_id,
@@ -79,7 +93,7 @@ async def create_scheduled_task(
     conversation_ids: str = Form(""),
     file_id: str = Form(""),
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     task_service: TaskService = Depends(get_task_service),
 ):
     conv_id_list = []
@@ -104,12 +118,11 @@ async def create_scheduled_task(
         file_id_val = int(file_id.strip())
         
     if file_id_val:
-        file_rec = db_session.get(FileRecord, file_id_val)
+        file_rec = await db_session.get(FileRecord, file_id_val)
         if file_rec:
             ext = file_rec.local_path.lower().split(".")[-1] if "." in file_rec.local_path else ""
             media_type = "image" if ext in ["jpg", "jpeg", "png", "gif", "webp"] else "file"
-            
-            # 使用内嵌 message_content 字典
+
             payload["message_content"] = {
                 "content_type": "media",
                 "media_type": media_type,
@@ -117,7 +130,6 @@ async def create_scheduled_task(
                 "media_key": file_rec.s3_key or "",
                 "text_content": message_template,
             }
-            # 同时将外层字段也设置，双重保障
             payload["content_type"] = "media"
             payload["media_type"] = media_type
             payload["media_url"] = file_rec.s3_url or file_rec.local_path
@@ -129,10 +141,10 @@ async def create_scheduled_task(
         payload["text_content"] = message_template
 
     try:
-        task_service.RegisterScheduledTask(payload)
+        await task_service.RegisterScheduledTask(payload)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-        
+
     return RedirectResponse(url="/web/scheduled", status_code=303)
 
 
@@ -141,28 +153,25 @@ async def edit_scheduled_page(
     task_id: int,
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     task_service: TaskService = Depends(get_task_service),
 ):
     try:
-        task = task_service.GetScheduledTaskById(task_id)
+        task = await task_service.GetScheduledTaskById(task_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="定时发送任务不存在")
         
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
-    files = db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded")).all()
-    
-    # 获取关联的 file_id（如果已设置消息内容中的媒体的话）
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
     # 我们根据 message_content_id 查一下对应的 message_content
     from app.models.message import MessageContent
     selected_file_id = None
     if task.get("message_content_id"):
-        content_obj = db_session.get(MessageContent, task["message_content_id"])
+        content_obj = await db_session.get(MessageContent, task["message_content_id"])
         if content_obj and content_obj.media_url:
-            # 尝试反向查找 FileRecord。匹配 s3_url 或 local_path
-            file_rec = db_session.scalar(
+            file_rec = await db_session.scalar(
                 select(FileRecord).where(
-                    (FileRecord.s3_url == content_obj.media_url) | 
+                    (FileRecord.s3_url == content_obj.media_url) |
                     (FileRecord.local_path == content_obj.media_url)
                 )
             )
@@ -193,7 +202,7 @@ async def update_scheduled_task(
     conversation_ids: str = Form(""),
     file_id: str = Form(""),
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     task_service: TaskService = Depends(get_task_service),
 ):
     conv_id_list = []
@@ -217,7 +226,7 @@ async def update_scheduled_task(
         file_id_val = int(file_id.strip())
         
     if file_id_val:
-        file_rec = db_session.get(FileRecord, file_id_val)
+        file_rec = await db_session.get(FileRecord, file_id_val)
         if file_rec:
             ext = file_rec.local_path.lower().split(".")[-1] if "." in file_rec.local_path else ""
             media_type = "image" if ext in ["jpg", "jpeg", "png", "gif", "webp"] else "file"
@@ -239,7 +248,7 @@ async def update_scheduled_task(
         payload["text_content"] = message_template
 
     try:
-        task_service.UpdateScheduledTask(task_id, payload)
+        await task_service.UpdateScheduledTask(task_id, payload)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
         
@@ -253,12 +262,12 @@ async def toggle_scheduled_active(
     task_service: TaskService = Depends(get_task_service),
 ):
     try:
-        task = task_service.GetScheduledTaskById(task_id)
+        task = await task_service.GetScheduledTaskById(task_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="定时发送任务不存在")
         
     new_active = not task["is_active"]
-    updated_task = task_service.SetScheduledTaskActive(task_id, is_active=new_active)
+    updated_task = await task_service.SetScheduledTaskActive(task_id, is_active=new_active)
     
     label = "● 启用中" if updated_task["is_active"] else "○ 已禁用"
     color_class = "text-green-600 font-bold" if updated_task["is_active"] else "text-red-500 font-bold"
@@ -281,7 +290,7 @@ async def delete_scheduled_task(
     task_service: TaskService = Depends(get_task_service),
 ):
     try:
-        task_service.SoftDeleteScheduledTask(task_id)
+        await task_service.SoftDeleteScheduledTask(task_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="定时发送任务不存在")
     return RedirectResponse(url="/web/scheduled", status_code=303)

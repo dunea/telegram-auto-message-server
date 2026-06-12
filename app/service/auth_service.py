@@ -5,21 +5,29 @@ import uuid
 import jwt
 from jwt import InvalidTokenError
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.models.user import User
-from app.repository.user_repository import UserRepository
-
+from app.repository.user_repository import SqlAlchemyUserRepository, UserRepository
 
 _PASSWORD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9_%+\-]+(?:\.[A-Za-z0-9_%+\-]+)*@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 
-
 class AuthService:
-    """用户注册登录与 JWT 认证服务。"""
+    """用户注册登录与 JWT 认证服务（异步版本）。
 
-    def __init__(self, settings: Settings, session: Session, user_repository: UserRepository) -> None:
+    说明：
+    1. 异步版本服务 ``/api/v1/users`` 路由（PR #3 引入）；
+    2. 与 ``AuthService``（同步）并存到 PR #11 收尾时统一合并；
+    3. 私有 3 个无 IO 辅助方法保持同步，方法签名同步版一致。
+    """
+
+    def __init__(
+        self,
+        settings: Settings,
+        session: AsyncSession,
+        user_repository: SqlAlchemyUserRepository,
+    ) -> None:
         self._settings = settings
         self._session = session
         self._user_repository = user_repository
@@ -55,7 +63,7 @@ class AuthService:
         }
         return jwt.encode(payload, self._settings.jwt_secret_key, algorithm=self._settings.jwt_algorithm)
 
-    def _get_user_by_token(self, token: str, expected_type: str) -> User:
+    async def _get_user_by_token(self, token: str, expected_type: str) -> User:
         try:
             payload = jwt.decode(
                 token,
@@ -78,20 +86,20 @@ class AuthService:
         except (TypeError, ValueError) as exc:
             raise ValueError("访问令牌用户信息非法") from exc
 
-        user = self._user_repository.FindById(user_id)
+        user = await self._user_repository.FindById(user_id)
         if user is None:
             raise ValueError("用户不存在")
         if not bool(user.is_active):
             raise PermissionError("用户已被禁用")
         return user
 
-    def RegisterUser(self, email: str, password: str) -> dict:
+    async def RegisterUser(self, email: str, password: str) -> dict:
         normalized_email = self._normalize_email(email)
         if _EMAIL_PATTERN.match(normalized_email) is None:
             raise ValueError("邮箱格式不合法")
         if len(password) < 6 or len(password) > 128:
             raise ValueError("密码长度需在 6-128 位之间")
-        if self._user_repository.ExistsByEmail(normalized_email):
+        if await self._user_repository.ExistsByEmail(normalized_email):
             raise ValueError("邮箱已注册")
 
         password_hash = _PASSWORD_CONTEXT.hash(password)
@@ -101,17 +109,17 @@ class AuthService:
             api_key=uuid.uuid4().hex,
             is_active=True,
         )
-        self._user_repository.Save(user)
-        self._session.commit()
+        await self._user_repository.Save(user)
+        await self._session.commit()
         return {
             "user_id": int(user.id),
             "email": user.email,
             "is_active": bool(user.is_active),
         }
 
-    def LoginUser(self, email: str, password: str) -> dict:
+    async def LoginUser(self, email: str, password: str) -> dict:
         normalized_email = self._normalize_email(email)
-        user = self._user_repository.FindByEmail(normalized_email)
+        user = await self._user_repository.FindByEmail(normalized_email)
         if user is None:
             raise ValueError("邮箱或密码错误")
         if not bool(user.is_active):
@@ -128,8 +136,8 @@ class AuthService:
             "expires_in_seconds": expires_in_seconds,
         }
 
-    def RefreshAccessToken(self, refresh_token: str) -> dict:
-        user = self._get_user_by_token(token=refresh_token, expected_type="refresh")
+    async def RefreshAccessToken(self, refresh_token: str) -> dict:
+        user = await self._get_user_by_token(token=refresh_token, expected_type="refresh")
         access_token, expires_in_seconds = self._build_access_token(user)
         rotated_refresh_token = self._build_refresh_token(user)
         return {
@@ -139,5 +147,5 @@ class AuthService:
             "expires_in_seconds": expires_in_seconds,
         }
 
-    def GetCurrentUserByToken(self, token: str) -> User:
-        return self._get_user_by_token(token=token, expected_type="access")
+    async def GetCurrentUserByToken(self, token: str) -> User:
+        return await self._get_user_by_token(token=token, expected_type="access")

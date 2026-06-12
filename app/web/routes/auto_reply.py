@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session, get_auto_reply_service
 from app.models.account import TelegramAccount
@@ -23,17 +23,17 @@ async def list_auto_reply_rules(
     request: Request,
     account_id: int | None = None,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
 ):
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
     accounts_map = {acc.id: acc for acc in accounts}
     
     # 如果 account_id 为0或空，我们视其为无过滤
     actual_account_id = account_id if account_id and account_id > 0 else None
     
     # 获取过滤后的规则列表
-    rules_data = auto_reply_service.ListRules(account_id=actual_account_id, limit=100, offset=0)
+    rules_data = await auto_reply_service.ListRules(account_id=actual_account_id, limit=100, offset=0)
     
     return templates.TemplateResponse("auto_reply/list.html", {
         "request": request,
@@ -49,11 +49,11 @@ async def list_auto_reply_rules(
 async def new_rule_page(
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
 ):
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
-    files = db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded")).all()
-    
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
+
     return templates.TemplateResponse("auto_reply/form.html", {
         "request": request,
         "user_id": user_id,
@@ -105,7 +105,7 @@ async def create_rule(
                 ))
                 
     try:
-        auto_reply_service.CreateRule(
+        await auto_reply_service.CreateRule(
             account_id=account_id,
             trigger_keyword=trigger_keyword,
             reply_content=reply_content,
@@ -126,16 +126,16 @@ async def edit_rule_page(
     rule_id: int,
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
 ):
     try:
-        rule = auto_reply_service.GetRuleById(rule_id)
+        rule = await auto_reply_service.GetRuleById(rule_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="规则不存在")
         
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
-    files = db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded")).all()
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
     
     keywords_str = ",".join(rule["keywords"] or []) if rule["keywords"] else ""
     conv_ids_str = ",".join(map(str, rule["conversation_ids"] or [])) if rule["conversation_ids"] else ""
@@ -194,7 +194,7 @@ async def update_rule(
                 ))
                 
     try:
-        auto_reply_service.UpdateRule(
+        await auto_reply_service.UpdateRule(
             rule_id=rule_id,
             trigger_keyword=trigger_keyword,
             reply_content=reply_content,
@@ -217,12 +217,12 @@ async def toggle_rule_active(
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
 ):
     try:
-        rule = auto_reply_service.GetRuleById(rule_id)
+        rule = await auto_reply_service.GetRuleById(rule_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="规则不存在")
     
     new_active = not rule["is_active"]
-    updated_rule = auto_reply_service.SetRuleActive(rule_id, is_active=new_active)
+    updated_rule = await auto_reply_service.SetRuleActive(rule_id, is_active=new_active)
     
     label = "● 启用中" if updated_rule["is_active"] else "○ 已禁用"
     color_class = "text-green-600 font-bold" if updated_rule["is_active"] else "text-red-500 font-bold"
@@ -245,7 +245,7 @@ async def delete_rule(
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
 ):
     try:
-        auto_reply_service.SoftDeleteRule(rule_id)
+        await auto_reply_service.SoftDeleteRule(rule_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="规则不存在")
     return RedirectResponse(url="/web/auto-reply", status_code=303)

@@ -3,7 +3,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session, get_file_service
 from app.models.file import FileRecord
@@ -20,11 +20,11 @@ router = APIRouter(prefix="/web", tags=["web-files"])
 async def list_files(
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
 ):
     # SQLAlchemy 查询 FileRecord
     stmt = select(FileRecord).order_by(FileRecord.id.desc())
-    files = db_session.scalars(stmt).all()
+    files = (await db_session.scalars(stmt))
 
     return templates.TemplateResponse(
         "files/list.html",
@@ -43,7 +43,7 @@ async def upload_file(
     user_id: int = Depends(get_current_user_from_cookie),
 ):
     content = await file.read()
-    file_service.UploadFile(filename=file.filename or "unnamed", content=content)
+    await file_service.UploadFile(filename=file.filename or "unnamed", content=content)
     return RedirectResponse(url="/web/files", status_code=303)
 
 
@@ -54,7 +54,7 @@ async def delete_file(
     user_id: int = Depends(get_current_user_from_cookie),
 ):
     try:
-        file_service.SoftDeleteFile(file_id=file_id)
+        await file_service.SoftDeleteFile(file_id=file_id)
     except ValueError as e:
         logger.warning(f"删除文件失败: {e}")
     return RedirectResponse(url="/web/files", status_code=303)
@@ -67,7 +67,7 @@ async def download_file(
     user_id: int = Depends(get_current_user_from_cookie),
 ):
     try:
-        content, filename, mime_type = file_service.DownloadFile(file_id=file_id)
+        content, filename, mime_type = await file_service.DownloadFile(file_id=file_id)
         encoded_filename = quote(filename)
         return Response(
             content=content,

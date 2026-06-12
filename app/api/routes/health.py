@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session, get_task_scheduler
 
@@ -13,7 +13,7 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str]:
     """返回服务健康状态。
 
     关键点：
@@ -24,8 +24,8 @@ def health_check() -> dict[str, str]:
 
 
 @router.get("/health/readiness")
-def readiness_check(
-    db_session: Session = Depends(get_db_session),
+async def readiness_check(
+    db_session: AsyncSession = Depends(get_db_session),
     scheduler=Depends(get_task_scheduler),
 ) -> dict[str, object]:
     """返回服务就绪状态。
@@ -35,7 +35,7 @@ def readiness_check(
     - 同时暴露调度器运行态，便于值班快速判断任务系统是否可用。
     """
     try:
-        db_session.execute(text("SELECT 1"))
+        await db_session.execute(text("SELECT 1"))
     except Exception as exc:
         raise HTTPException(status_code=503, detail="数据库不可用") from exc
 

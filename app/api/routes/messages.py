@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_current_user, get_telegram_service
+from app.api.deps import get_telegram_service, get_current_user
 from app.api.http_errors import map_http_exceptions
 from app.schema.message import SendMessageRequest, SendMessageResult
 from app.service.telegram_service import TelegramService
@@ -28,7 +28,7 @@ async def list_send_records(
     - 该接口用于发送行为追溯，建议与 account_id 维度审计日志联动排查；
     - limit 上限用于控制查询成本，避免批量导出式访问。
     """
-    return telegram_service.ListSendRecords(account_id=account_id, limit=limit)
+    return await telegram_service.ListSendRecords(account_id=account_id, limit=limit)
 
 
 @router.post("/send", response_model=SendMessageResult)

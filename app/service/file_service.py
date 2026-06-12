@@ -4,28 +4,31 @@ import uuid
 import mimetypes
 import logging
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapter.s3_adapter import S3Adapter
 from app.config import Settings
 from app.models.file import FileRecord
-from app.repository.file_repository import SqlAlchemyFileRecordRepository
-
+from app.repository.file_repository import (
+    SqlAlchemyFileRecordRepository,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 logger = logging.getLogger(__name__)
 
-
 class FileService:
-    """文件生命周期服务。
+    """文件生命周期服务（异步版本，PR #4 引入，PR #10 切 aioboto3）。
 
-    流程：本地临时文件 -> 上传 S3 -> 本地清理。
+    说明：
+    1. 与 ``FileService``（同步）并存到 PR #11 收尾；
+    2. aioboto3 原生 async 调用（PR #10 切 aioboto3，桥接已删除）；
+    3. 私有 3 个无 IO 辅助方法（EnsureTempDir / _safe_filename / _to_item）与 sync 版一致保持同步。
     """
 
     def __init__(
         self,
         settings: Settings,
-        session: Session,
+        session: AsyncSession,
         file_record_repository: SqlAlchemyFileRecordRepository,
         s3_adapter: S3Adapter,
     ) -> None:
@@ -62,8 +65,7 @@ class FileService:
             "expires_at": file_record.expires_at.isoformat() if file_record.expires_at else None,
         }
 
-    def UploadFile(self, filename: str, content: bytes) -> dict:
-        """上传文件：先落本地，再尝试上传 S3。"""
+    async def UploadFile(self, filename: str, content: bytes) -> dict:
         if not content:
             raise ValueError("文件内容不能为空")
 
@@ -87,13 +89,16 @@ class FileService:
             status="pending",
             expires_at=expires_at,
         )
-        self._file_record_repository.Save(file_record)
-        self._session.flush()
+        await self._file_record_repository.Save(file_record)
+        await self._session.flush()
 
         object_key = f"uploads/{datetime.utcnow().strftime('%Y%m%d')}/{file_token}_{safe_name}"
         s3_url = ""
         try:
-            s3_url = self._s3_adapter.UploadFile(local_path=str(local_path), key=object_key)
+            s3_url = await self._s3_adapter.UploadFile(
+                local_path=str(local_path),
+                key=object_key,
+            )
         except Exception:
             logger.exception(
                 "S3 上传失败，文件保留 pending 状态以便后续补偿",
@@ -110,7 +115,7 @@ class FileService:
                 extra={"object_key": object_key, "file_record_id": int(file_record.id or 0)},
             )
 
-        self._session.commit()
+        await self._session.commit()
         result = self._to_item(file_record)
         return {
             "file_id": result["file_id"],
@@ -121,23 +126,22 @@ class FileService:
             "s3_url": result["s3_url"],
         }
 
-    def ListFiles(self, status: str | None, limit: int, offset: int) -> dict:
-        items = self._file_record_repository.FindAllOrderByIdDesc(limit=limit, offset=offset, status=status)
-        total = self._file_record_repository.CountByStatus(status=status)
+    async def ListFiles(self, status: str | None, limit: int, offset: int) -> dict:
+        items = await self._file_record_repository.FindAllOrderByIdDesc(limit=limit, offset=offset, status=status)
+        total = await self._file_record_repository.CountByStatus(status=status)
         return {
             "total": int(total),
             "items": [self._to_item(item) for item in items],
         }
 
-    def GetFileById(self, file_id: int) -> dict:
-        file_record = self._file_record_repository.FindById(file_id)
+    async def GetFileById(self, file_id: int) -> dict:
+        file_record = await self._file_record_repository.FindById(file_id)
         if file_record is None:
             raise ValueError("文件不存在")
         return self._to_item(file_record)
 
-    def DownloadFile(self, file_id: int) -> tuple[bytes, str, str]:
-        """下载文件，返回 (内容, 文件名, MIME)。"""
-        file_record = self._file_record_repository.FindById(file_id)
+    async def DownloadFile(self, file_id: int) -> tuple[bytes, str, str]:
+        file_record = await self._file_record_repository.FindById(file_id)
         if file_record is None:
             raise ValueError("文件不存在")
         if file_record.status == "deleted":
@@ -145,7 +149,10 @@ class FileService:
 
         local_path = Path(file_record.local_path)
         if not local_path.exists() and file_record.s3_key:
-            self._s3_adapter.DownloadFile(key=file_record.s3_key, local_path=str(local_path))
+            await self._s3_adapter.DownloadFile(
+                key=file_record.s3_key,
+                local_path=str(local_path),
+            )
 
         if not local_path.exists():
             raise ValueError("文件不可用")
@@ -155,17 +162,17 @@ class FileService:
         mime_type, _ = mimetypes.guess_type(filename)
         return content, filename, mime_type or "application/octet-stream"
 
-    def SoftDeleteFile(self, file_id: int) -> dict:
-        file_record = self._file_record_repository.FindById(file_id)
+    async def SoftDeleteFile(self, file_id: int) -> dict:
+        file_record = await self._file_record_repository.FindById(file_id)
         if file_record is None:
             raise ValueError("文件不存在")
 
         if file_record.s3_key:
-            self._s3_adapter.DeleteFile(key=file_record.s3_key)
+            await self._s3_adapter.DeleteFile(key=file_record.s3_key)
 
         Path(file_record.local_path).unlink(missing_ok=True)
         file_record.status = "deleted"
-        self._session.commit()
+        await self._session.commit()
         result = self._to_item(file_record)
         return {
             "file_id": result["file_id"],
@@ -176,19 +183,13 @@ class FileService:
             "s3_url": result["s3_url"],
         }
 
-    def CleanupExpiredFiles(self, batch_limit: int = 200) -> dict[str, int]:
-        """清理过期文件。
-
-        说明：
-        1. 仅处理 pending/uploaded 且 expires_at 已过期的记录；
-        2. 清理本地文件与 S3 对象后，将状态统一置为 deleted。
-        """
+    async def CleanupExpiredFiles(self, batch_limit: int = 200) -> dict[str, int]:
         now = datetime.now(timezone.utc)
         cleaned = 0
         s3_delete_failed = 0
 
         for status in ("pending", "uploaded"):
-            expired_records = self._file_record_repository.FindAllByStatusAndExpiresAtBefore(
+            expired_records = await self._file_record_repository.FindAllByStatusAndExpiresAtBefore(
                 status=status,
                 expires_before=now,
                 limit=batch_limit,
@@ -199,7 +200,7 @@ class FileService:
 
                 if file_record.s3_key:
                     try:
-                        self._s3_adapter.DeleteFile(key=file_record.s3_key)
+                        await self._s3_adapter.DeleteFile(key=file_record.s3_key)
                     except Exception:
                         s3_delete_failed += 1
                         logger.exception(
@@ -210,5 +211,5 @@ class FileService:
                 file_record.status = "deleted"
                 cleaned += 1
 
-        self._session.commit()
+        await self._session.commit()
         return {"cleaned": cleaned, "s3_delete_failed": s3_delete_failed}

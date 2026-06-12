@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session, get_telegram_service
 from app.models.account import TelegramAccount, ProxyInfo
@@ -19,10 +19,10 @@ router = APIRouter(prefix="/web", tags=["web-accounts"])
 async def list_accounts(
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session)
+    db_session: AsyncSession = Depends(get_db_session)
 ):
-    accounts = db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id)).all()
-    proxies = {p.id: p for p in db_session.scalars(select(ProxyInfo)).all()}
+    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    proxies = {p.id: p for p in (await db_session.scalars(select(ProxyInfo)))}
     return templates.TemplateResponse("accounts/list.html", {
         "request": request,
         "user_id": user_id,
@@ -35,9 +35,9 @@ async def list_accounts(
 async def new_account_page(
     request: Request,
     user_id: int = Depends(get_current_user_from_cookie),
-    db_session: Session = Depends(get_db_session)
+    db_session: AsyncSession = Depends(get_db_session)
 ):
-    proxies = db_session.scalars(select(ProxyInfo).where(ProxyInfo.is_active == True)).all()
+    proxies = await db_session.scalars(select(ProxyInfo).where(ProxyInfo.is_active == True))
     return templates.TemplateResponse("accounts/login_flow.html", {
         "request": request,
         "user_id": user_id,
@@ -185,14 +185,14 @@ async def login_with_session(
 async def get_account_detail(
     request: Request,
     account_id: int,
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     telegram_service: TelegramService = Depends(get_telegram_service),
     user_id: int = Depends(get_current_user_from_cookie),
 ):
-    account = db_session.get(TelegramAccount, account_id)
+    account = await db_session.get(TelegramAccount, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")
-    proxy = db_session.get(ProxyInfo, account.proxy_id) if account.proxy_id else None
+    proxy = await db_session.get(ProxyInfo, account.proxy_id) if account.proxy_id else None
     
     conversations = []
     error_msg = None
@@ -216,15 +216,16 @@ async def get_account_detail(
 @router.post("/accounts/{account_id}/toggle-active")
 async def toggle_active(
     account_id: int,
-    db_session: Session = Depends(get_db_session),
+    db_session: AsyncSession = Depends(get_db_session),
     user_id: int = Depends(get_current_user_from_cookie),
 ):
-    account = db_session.get(TelegramAccount, account_id)
+    # TODO PR #11: 改为 async def + AsyncSession 统一处理
+    account = await db_session.get(TelegramAccount, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="账号不存在")
     account.is_active = not account.is_active
-    db_session.commit()
-    
+    await db_session.commit()
+
     label = "● 启用中" if account.is_active else "○ 已禁用"
     color_class = "text-green-600 font-bold" if account.is_active else "text-red-500 font-bold"
     
@@ -247,7 +248,7 @@ async def delete_account(
     user_id: int = Depends(get_current_user_from_cookie),
 ):
     try:
-        telegram_service.SoftDeleteAccount(account_id)
+        await telegram_service.SoftDeleteAccount(account_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
         

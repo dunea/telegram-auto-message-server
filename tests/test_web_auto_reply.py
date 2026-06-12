@@ -34,10 +34,44 @@ def set_id_if_null(mapper, connection, target):
         setattr(target, "id", random.randint(10000, 99999999))
 
 
+class _FakeAsyncSession:
+    """把 sync Session 包装为 async 兼容（PR #11 收尾后 web 测试用）。
+
+    AsyncSession API 中只有部分方法是 async def（flush/scalar/scalars/get/execute/commit/refresh/delete），
+    其余（add/add_all/expire/expire_all）是 sync。包装时区分。
+    """
+    def __init__(self, db):
+        self._db = db
+    def add(self, entity):
+        return self._db.add(entity)
+    def add_all(self, entities):
+        return self._db.add_all(entities)
+    def expire(self, *args, **kwargs):
+        return self._db.expire(*args, **kwargs)
+    def expire_all(self):
+        return self._db.expire_all()
+    async def flush(self):
+        return self._db.flush()
+    async def commit(self):
+        return self._db.commit()
+    async def refresh(self, *args, **kwargs):
+        return self._db.refresh(*args, **kwargs)
+    async def delete(self, *args, **kwargs):
+        return self._db.delete(*args, **kwargs)
+    async def execute(self, stmt):
+        return self._db.execute(stmt)
+    async def scalar(self, stmt):
+        return self._db.scalar(stmt)
+    async def scalars(self, stmt):
+        return self._db.scalars(stmt)
+    async def get(self, *args, **kwargs):
+        return self._db.get(*args, **kwargs)
+
+
 def get_testing_db():
     db = TestingSessionLocal()
     try:
-        yield db
+        yield _FakeAsyncSession(db)
     finally:
         db.close()
 

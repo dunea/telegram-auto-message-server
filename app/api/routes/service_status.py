@@ -14,7 +14,7 @@ router = APIRouter(prefix="/service", tags=["service"], dependencies=[Depends(ge
 
 
 @router.get("/status")
-def get_service_status() -> dict:
+async def get_service_status() -> dict:
     """获取当前服务状态与号池关键配置。
 
     关键点：

@@ -8,14 +8,15 @@
 - 会话释放：get_db_session 必须在 finally 分支关闭会话，避免连接泄漏；
 - 分层边界：路由层负责参数接收与异常转换，业务校验由 service 层执行；
 - 异常约定：路由层将 ValueError 映射为 HTTP 4xx（通常为 400/404）。
+- PR #11 收尾：所有依赖工厂统一为 async 版本（无 sync/async 双轨）。
 """
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from functools import lru_cache
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapter.mysql_adapter import build_session_factory
 from app.adapter.s3_adapter import S3Adapter
@@ -49,18 +50,6 @@ _http_bearer = HTTPBearer(auto_error=False)
 
 
 @lru_cache(maxsize=1)
-def get_session_factory() -> sessionmaker[Session]:
-    """获取并缓存 SQLAlchemy Session 工厂。
-
-    关键点：
-    - 通过单例缓存避免重复创建连接工厂；
-    - 降低请求路径上的依赖装配开销。
-    """
-    settings = get_settings()
-    return build_session_factory(settings)
-
-
-@lru_cache(maxsize=1)
 def get_telegram_adapter() -> TelegramAdapter:
     """获取并缓存 Telegram 适配器实例。
 
@@ -84,89 +73,71 @@ def get_task_scheduler() -> TaskScheduler:
 
 
 @lru_cache(maxsize=1)
-def get_s3_adapter() -> S3Adapter:
-    """获取并缓存 S3 适配器实例。"""
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """获取并缓存 SQLAlchemy AsyncSession 工厂（PR #11 收尾后唯一工厂）。"""
     settings = get_settings()
-    return S3Adapter(settings=settings)
+    return build_session_factory(settings)
 
 
-def get_db_session() -> Generator[Session, None, None]:
-    """按请求提供数据库会话，并在请求结束后释放。
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """按请求提供 async 数据库会话，并在请求结束后释放。
 
     关键点：
-    - 会话生命周期与请求生命周期绑定；
-    - finally 分支保证异常路径也会关闭会话。
+    - async session 生命周期与 async 路由生命周期绑定；
+    - finally 分支 ``await session.close()`` 保证连接归还到 aiomysql 连接池。
     """
     session_factory = get_session_factory()
     session = session_factory()
     try:
         yield session
     finally:
-        session.close()
+        await session.close()
 
 
-def get_telegram_service(db_session: Session = Depends(get_db_session)) -> TelegramService:
-    """构建 TelegramService 依赖。
-
-    关键点：
-    - 聚合账户、消息内容、消息媒体、发送记录等仓储对象；
-    - 注入 Telegram 适配器，供账户管理与消息发送 API 复用。
-    """
+async def get_telegram_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> TelegramService:
+    """构造 TelegramService 供 accounts + messages 路由使用（PR #11 收尾后唯一版本）。"""
     settings: Settings = get_settings()
-    account_repository = SqlAlchemyTelegramAccountRepository(db_session)
-    message_content_repository = SqlAlchemyMessageContentRepository(db_session)
-    message_content_media_repository = SqlAlchemyMessageContentMediaRepository(db_session)
-    message_repository = SqlAlchemyTelegramMessageRepository(db_session)
-    message_media_repository = SqlAlchemyTelegramMessageMediaRepository(db_session)
-    message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(db_session)
-    telegram_adapter = get_telegram_adapter()
     return TelegramService(
         settings=settings,
         session=db_session,
-        account_repository=account_repository,
-        message_content_repository=message_content_repository,
-        message_content_media_repository=message_content_media_repository,
-        message_repository=message_repository,
-        message_media_repository=message_media_repository,
-        message_send_attempt_repository=message_send_attempt_repository,
-        telegram_adapter=telegram_adapter,
+        account_repository=SqlAlchemyTelegramAccountRepository(db_session),
+        message_content_repository=SqlAlchemyMessageContentRepository(db_session),
+        message_content_media_repository=SqlAlchemyMessageContentMediaRepository(db_session),
+        message_repository=SqlAlchemyTelegramMessageRepository(db_session),
+        message_media_repository=SqlAlchemyTelegramMessageMediaRepository(db_session),
+        message_send_attempt_repository=SqlAlchemyTelegramMessageSendAttemptRepository(db_session),
+        telegram_adapter=get_telegram_adapter(),
     )
 
 
-def get_task_service(db_session: Session = Depends(get_db_session)) -> TaskService:
-    """构建 TaskService 依赖。
-
-    关键点：
-    - 当前会话用于本次请求内的读写；
-    - 会话工厂用于调度器异步执行任务时独立创建事务上下文。
-    """
+async def get_task_service(
+    db_session: AsyncSession = Depends(get_db_session),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
+) -> TaskService:
+    """构造 TaskService 依赖（PR #11 收尾后唯一版本）。"""
     settings: Settings = get_settings()
-    session_factory = get_session_factory()
     scheduler = get_task_scheduler()
     telegram_adapter = get_telegram_adapter()
-    message_content_repository = SqlAlchemyMessageContentRepository(db_session)
-    message_content_media_repository = SqlAlchemyMessageContentMediaRepository(db_session)
-
-    scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(db_session)
-    rule_task_repository = SqlAlchemyRuleMessageTaskRepository(db_session)
-    task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(db_session)
-
     return TaskService(
         settings=settings,
         session=db_session,
         session_factory=session_factory,
         scheduler=scheduler,
         telegram_adapter=telegram_adapter,
-        message_content_repository=message_content_repository,
-        message_content_media_repository=message_content_media_repository,
-        scheduled_task_repository=scheduled_task_repository,
-        rule_task_repository=rule_task_repository,
-        task_execution_log_repository=task_execution_log_repository,
+        message_content_repository=SqlAlchemyMessageContentRepository(db_session),
+        message_content_media_repository=SqlAlchemyMessageContentMediaRepository(db_session),
+        scheduled_task_repository=SqlAlchemyScheduledMessageTaskRepository(db_session),
+        rule_task_repository=SqlAlchemyRuleMessageTaskRepository(db_session),
+        task_execution_log_repository=SqlAlchemyTaskExecutionLogRepository(db_session),
     )
 
 
-def get_auto_reply_service(db_session: Session = Depends(get_db_session)) -> AutoReplyService:
-    """构建 AutoReplyService 依赖。"""
+async def get_auto_reply_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> AutoReplyService:
+    """构建 AutoReplyService 依赖（PR #11 收尾后唯一版本）。"""
     auto_reply_rule_repository = SqlAlchemyAutoReplyRuleRepository(db_session)
     return AutoReplyService(
         session=db_session,
@@ -174,8 +145,10 @@ def get_auto_reply_service(db_session: Session = Depends(get_db_session)) -> Aut
     )
 
 
-def get_file_service(db_session: Session = Depends(get_db_session)) -> FileService:
-    """构建 FileService 依赖。"""
+async def get_file_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> FileService:
+    """构建 FileService 依赖（PR #11 收尾后唯一版本）。"""
     settings = get_settings()
     file_record_repository = SqlAlchemyFileRecordRepository(db_session)
     return FileService(
@@ -186,8 +159,10 @@ def get_file_service(db_session: Session = Depends(get_db_session)) -> FileServi
     )
 
 
-def get_auth_service(db_session: Session = Depends(get_db_session)) -> AuthService:
-    """构建 AuthService 依赖。"""
+async def get_auth_service(
+    db_session: AsyncSession = Depends(get_db_session),
+) -> AuthService:
+    """构建 AuthService 依赖（PR #11 收尾后唯一版本）。"""
     settings = get_settings()
     user_repository = SqlAlchemyUserRepository(db_session)
     return AuthService(
@@ -197,7 +172,14 @@ def get_auth_service(db_session: Session = Depends(get_db_session)) -> AuthServi
     )
 
 
-def get_current_user(
+@lru_cache(maxsize=1)
+def get_s3_adapter() -> S3Adapter:
+    """获取并缓存 S3 适配器实例（async，aioboto3 驱动）。"""
+    settings = get_settings()
+    return S3Adapter(settings=settings)
+
+
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer),
     auth_service: AuthService = Depends(get_auth_service),
 ):
@@ -206,7 +188,8 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="缺少访问令牌")
 
     try:
-        return auth_service.GetCurrentUserByToken(credentials.credentials)
+        user = await auth_service.GetCurrentUserByToken(credentials.credentials)
+        return user
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
