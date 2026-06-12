@@ -43,7 +43,12 @@
                         <span class="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
                         已启用账号: {{ accounts.active }}
                     </span>
-                    <a href="/web/accounts" class="font-bold text-indigo-600 hover:text-indigo-800 transition">管理账号 &rarr;</a>
+                    <a href="/web/accounts" class="font-bold text-indigo-600 hover:text-indigo-800 transition inline-flex items-center gap-1">
+                        管理账号
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </a>
                 </div>
             </div>
         </div>
@@ -69,7 +74,12 @@
                     <span class="text-gray-500">
                         触发模式: 关键词/全匹配
                     </span>
-                    <a href="/web/auto-reply" class="font-bold text-emerald-600 hover:text-emerald-800 transition">配置规则 &rarr;</a>
+                    <a href="/web/auto-reply" class="font-bold text-emerald-600 hover:text-emerald-800 transition inline-flex items-center gap-1">
+                        配置规则
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </a>
                 </div>
             </div>
         </div>
@@ -95,7 +105,12 @@
                     <span class="text-gray-500">
                         基于 Cron 定时触发
                     </span>
-                    <a href="/web/scheduled" class="font-bold text-amber-600 hover:text-amber-800 transition">设置任务 &rarr;</a>
+                    <a href="/web/scheduled" class="font-bold text-amber-600 hover:text-amber-800 transition inline-flex items-center gap-1">
+                        设置任务
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </a>
                 </div>
             </div>
         </div>
@@ -122,7 +137,12 @@
                         <span class="text-red-500 font-medium">失败: {{ messages_24h.failed }}</span>
                         <span class="text-yellow-500 font-medium">排队: {{ messages_24h.pending }}</span>
                     </span>
-                    <a href="/web/messages" class="font-bold text-blue-600 hover:text-blue-800 transition">发送历史 &rarr;</a>
+                    <a href="/web/messages" class="font-bold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1">
+                        发送历史
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </a>
                 </div>
             </div>
         </div>

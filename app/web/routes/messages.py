@@ -26,9 +26,9 @@ async def list_messages(
     db_session: AsyncSession = Depends(get_db_session),
 ):
     # 查询所有托管账号，用于在顶部下拉筛选
-    accounts = await db_session.scalars(
+    accounts = (await db_session.scalars(
         select(TelegramAccount).order_by(TelegramAccount.id)
-    )
+    )).all()
     accounts_map = {acc.id: acc for acc in accounts}
 
     # 构建消息查询语句
@@ -44,7 +44,7 @@ async def list_messages(
 
     # 分页限制
     stmt = stmt.limit(limit).offset(offset)
-    messages = (await db_session.scalars(stmt))
+    messages = (await db_session.scalars(stmt)).all()
 
     return templates.TemplateResponse(
         request,
@@ -58,3 +58,4 @@ async def list_messages(
             "selected_direction": direction,
         },
     )
+

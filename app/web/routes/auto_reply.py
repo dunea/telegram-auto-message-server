@@ -26,7 +26,7 @@ async def list_auto_reply_rules(
     db_session: AsyncSession = Depends(get_db_session),
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
 ):
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
     accounts_map = {acc.id: acc for acc in accounts}
     
     # 如果 account_id 为0或空，我们视其为无过滤
@@ -50,8 +50,8 @@ async def new_rule_page(
     user_id: int = Depends(get_current_user_from_cookie),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
-    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    files = (await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))).all()
 
     return templates.TemplateResponse(request, "auto_reply/form.html", {
         "user_id": user_id,
@@ -132,8 +132,8 @@ async def edit_rule_page(
     except ValueError:
         raise HTTPException(status_code=404, detail="规则不存在")
         
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
-    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    files = (await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))).all()
     
     keywords_str = ",".join(rule["keywords"] or []) if rule["keywords"] else ""
     conv_ids_str = ",".join(map(str, rule["conversation_ids"] or [])) if rule["conversation_ids"] else ""

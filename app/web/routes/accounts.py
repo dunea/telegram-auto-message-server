@@ -21,8 +21,8 @@ async def list_accounts(
     user_id: int = Depends(get_current_user_from_cookie),
     db_session: AsyncSession = Depends(get_db_session)
 ):
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
-    proxies = {p.id: p for p in (await db_session.scalars(select(ProxyInfo)))}
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    proxies = {p.id: p for p in (await db_session.scalars(select(ProxyInfo))).all()}
     return templates.TemplateResponse(request, "accounts/list.html", {
         "user_id": user_id,
         "accounts": accounts,
@@ -36,7 +36,7 @@ async def new_account_page(
     user_id: int = Depends(get_current_user_from_cookie),
     db_session: AsyncSession = Depends(get_db_session)
 ):
-    proxies = await db_session.scalars(select(ProxyInfo).where(ProxyInfo.is_active == True))
+    proxies = (await db_session.scalars(select(ProxyInfo).where(ProxyInfo.is_active == True))).all()
     return templates.TemplateResponse(request, "accounts/login_flow.html", {
         "user_id": user_id,
         "proxies": proxies

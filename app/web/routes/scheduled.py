@@ -26,7 +26,7 @@ async def list_scheduled_tasks(
     db_session: AsyncSession = Depends(get_db_session),
     task_service: TaskService = Depends(get_task_service),
 ):
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
     accounts_map = {acc.id: acc for acc in accounts}
     
     # 账号过滤，如果 account_id 为0或空，表示无过滤
@@ -38,7 +38,7 @@ async def list_scheduled_tasks(
     else:
         # 获取全局所有定时发送任务汇总
         stmt = select(ScheduledMessageTask).order_by(ScheduledMessageTask.id.desc())
-        tasks = (await db_session.scalars(stmt))
+        tasks = (await db_session.scalars(stmt)).all()
         tasks_list = [
             {
                 "task_id": int(t.id),
@@ -70,8 +70,8 @@ async def new_scheduled_page(
     user_id: int = Depends(get_current_user_from_cookie),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
-    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    files = (await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))).all()
 
     return templates.TemplateResponse(request, "scheduled/form.html", {
         "user_id": user_id,
@@ -159,8 +159,8 @@ async def edit_scheduled_page(
     except ValueError:
         raise HTTPException(status_code=404, detail="定时发送任务不存在")
         
-    accounts = await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))
-    files = await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    files = (await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))).all()
     # 我们根据 message_content_id 查一下对应的 message_content
     from app.models.message import MessageContent
     selected_file_id = None

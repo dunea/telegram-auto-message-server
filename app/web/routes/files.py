@@ -24,7 +24,7 @@ async def list_files(
 ):
     # SQLAlchemy 查询 FileRecord
     stmt = select(FileRecord).order_by(FileRecord.id.desc())
-    files = (await db_session.scalars(stmt))
+    files = (await db_session.scalars(stmt)).all()
 
     return templates.TemplateResponse(
         request,
