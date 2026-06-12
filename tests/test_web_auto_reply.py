@@ -375,3 +375,58 @@ def test_auto_reply_delete() -> None:
     assert rule_after is not None
     assert rule_after.is_active is False
     db.close()
+
+
+def test_auto_reply_messages_page() -> None:
+    """测试获取自动回复规则随机消息池管理页面。"""
+    db = TestingSessionLocal()
+    acc = TelegramAccount(id=1, phone_number="+8612345678901", display_name="测试账号", is_active=True)
+    rule = AutoReplyRule(id=10, account_id=1, trigger_keyword="hello", reply_content="hi", is_active=True, trigger_mode="keyword")
+    db.add_all([acc, rule])
+    db.commit()
+    db.close()
+
+    app = FastAPI()
+    app.include_router(auto_reply_router)
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: 1
+    app.dependency_overrides[get_db_session] = get_testing_db
+
+    client = TestClient(app)
+    resp = client.get("/web/auto-reply/10/messages")
+    assert resp.status_code == 200
+    assert "配置随机回复消息池" in resp.text
+    assert "测试账号" in resp.text
+
+
+def test_auto_reply_messages_update() -> None:
+    """测试更新自动回复规则随机消息池。"""
+    db = TestingSessionLocal()
+    acc = TelegramAccount(id=1, phone_number="+8612345678901", display_name="测试账号", is_active=True)
+    rule = AutoReplyRule(id=11, account_id=1, trigger_keyword="hello", reply_content="hi", is_active=True, trigger_mode="keyword")
+    db.add_all([acc, rule])
+    db.commit()
+    db.close()
+
+    app = FastAPI()
+    app.include_router(auto_reply_router)
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: 1
+    app.dependency_overrides[get_db_session] = get_testing_db
+
+    client = TestClient(app)
+    payload = {
+        "reply_messages_text": ["文本1", "文本2"],
+        "reply_messages_file_id": ["", ""]
+    }
+    resp = client.post("/web/auto-reply/11/messages", data=payload, follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/web/auto-reply"
+
+    # 验证数据库中消息已被保存
+    db = TestingSessionLocal()
+    rule_after = db.scalars(select(AutoReplyRule).where(AutoReplyRule.id == 11)).first()
+    assert rule_after is not None
+    msgs = sorted(rule_after.reply_messages, key=lambda m: m.sort_order)
+    assert len(msgs) == 2
+    assert msgs[0].text == "文本1"
+    assert msgs[1].text == "文本2"
+    db.close()

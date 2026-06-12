@@ -2,7 +2,7 @@
 {% from "_partials/empty_state.html" import empty_state %}
 {% block title %}定时消息任务 - {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div>
     <!-- Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
@@ -35,7 +35,8 @@
     </div>
 
     <!-- Task List -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <!-- Desktop Table View -->
+    <div class="hidden sm:block bg-white shadow overflow-hidden sm:rounded-lg">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -51,7 +52,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% if not tasks %}
                     <tr>
-                        <td colspan="6" class="px-6 py-10">
+                        <td colspan="6" class="px-6 py-10 text-center">
                             {{ empty_state("暂无任何定时消息任务", "点击上方“添加定时消息任务”开始创建") }}
                         </td>
                     </tr>
@@ -98,9 +99,8 @@
                         </td>
                         <!-- 状态 -->
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button id="status-badge-{{ task.task_id }}"
-                                    hx-post="/web/scheduled/{{ task.task_id }}/toggle-active"
-                                    hx-target="#status-badge-{{ task.task_id }}"
+                            <button hx-post="/web/scheduled/{{ task.task_id }}/toggle-active"
+                                    hx-target="this"
                                     hx-swap="outerHTML"
                                     class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
                                 {% if task.is_active %}
@@ -124,6 +124,77 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="block sm:hidden space-y-4">
+        {% for task in tasks %}
+        <div class="bg-white shadow rounded-lg p-4 space-y-3">
+            <div class="flex justify-between items-start">
+                <div>
+                    {% set acc = accounts_map.get(task.account_id) %}
+                    {% if acc %}
+                        <span class="font-medium text-indigo-600 text-sm block">{{ acc.display_name or acc.phone_number }}</span>
+                    {% else %}
+                        <span class="text-gray-400 text-sm block">未知账号 (ID: {{ task.account_id }})</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <code class="bg-gray-100 text-pink-650 px-2 py-0.5 rounded text-xs font-mono font-bold">{{ task.cron_expr }}</code>
+                </div>
+            </div>
+
+            <!-- Target session -->
+            <div class="text-xs space-y-1 bg-gray-50 p-2 rounded">
+                <div>
+                    <span class="text-gray-500 font-medium">目标会话:</span>
+                    <span class="text-gray-800 font-mono font-bold ml-1">{{ task.target_identifier }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 font-medium">范围:</span>
+                    {% if task.scope_mode == "specific" %}
+                        <span class="text-red-500 font-medium">指定会话: {{ task.conversation_ids | join(', ') }}</span>
+                    {% else %}
+                        <span class="text-gray-400">全部私聊与群组</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Message template preview -->
+            <div class="text-xs text-gray-700">
+                <span class="text-gray-500 font-medium block mb-0.5">消息内容:</span>
+                <p class="italic break-all line-clamp-3 bg-gray-50 p-2 rounded border border-gray-100">{{ task.message_template or "(无文本内容)" }}</p>
+                {% if task.message_content_id %}
+                    <span class="inline-flex items-center mt-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        包含内容 ID: {{ task.message_content_id }}
+                    </span>
+                {% endif %}
+            </div>
+
+            <!-- Toggle Status & Actions -->
+            <div class="flex justify-between items-center pt-2 border-t border-gray-100">
+                <button hx-post="/web/scheduled/{{ task.task_id }}/toggle-active"
+                        hx-target="this"
+                        hx-swap="outerHTML"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                    {% if task.is_active %}
+                    <span class="text-green-600 font-bold">● 启用中</span>
+                    {% else %}
+                    <span class="text-red-500 font-bold">○ 已禁用</span>
+                    {% endif %}
+                </button>
+                <div class="flex gap-3">
+                    <a href="/web/scheduled/{{ task.task_id }}/edit" class="text-indigo-600 hover:text-indigo-900 transition text-sm font-medium">编辑</a>
+                    <form action="/web/scheduled/{{ task.task_id }}/delete" method="POST" onsubmit="return confirm('确定要删除此定时发送任务吗？');" class="inline">
+                        <button type="submit" class="text-red-600 hover:text-red-900 transition text-sm font-medium">删除</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

@@ -226,9 +226,8 @@ async def toggle_active(
     color_class = "text-green-600 font-bold" if account.is_active else "text-red-500 font-bold"
     
     return HTMLResponse(f"""
-        <button id="status-badge-{account_id}"
-                hx-post="/web/accounts/{account_id}/toggle-active"
-                hx-target="#status-badge-{account_id}"
+        <button hx-post="/web/accounts/{account_id}/toggle-active"
+                hx-target="this"
                 hx-swap="outerHTML"
                 class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
             <span class="{color_class}">{label}</span>

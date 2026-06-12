@@ -2,7 +2,7 @@
 {% from "_partials/empty_state.html" import empty_state %}
 {% block title %}本地与云端存储文件管理 - {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div>
     <!-- Header -->
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">文件存储与管理</h1>
@@ -33,8 +33,8 @@
         </div>
     </div>
 
-    <!-- Files Table Card -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+    <!-- Desktop Table View -->
+    <div class="hidden sm:block bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
         <div class="px-4 py-5 border-b border-gray-200 sm:px-6">
             <h3 class="text-lg leading-6 font-medium text-gray-900">所有托管文件列表</h3>
         </div>
@@ -54,7 +54,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% if not files %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10">
+                        <td colspan="7" class="px-6 py-10 text-center">
                             {{ empty_state("暂无任何托管文件", "请在上方上传一个新文件开始") }}
                         </td>
                     </tr>
@@ -125,6 +125,86 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="block sm:hidden bg-white shadow overflow-hidden rounded-lg border border-gray-200">
+        <div class="px-4 py-5 border-b border-gray-200">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">所有托管文件列表</h3>
+        </div>
+        <div class="p-4 space-y-4">
+            {% if not files %}
+            <div class="text-center py-6">
+                {{ empty_state("暂无任何托管文件", "请在上方上传一个新文件开始") }}
+            </div>
+            {% endif %}
+            {% for file in files %}
+            <div class="bg-white shadow border border-gray-100 rounded-lg p-4 space-y-3 text-sm">
+                <div class="flex justify-between items-center">
+                    <span class="font-mono text-gray-500 font-bold text-xs">#{{ file.id }}</span>
+                    <div>
+                        {% if file.status == 'uploaded' %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            已同步
+                        </span>
+                        {% elif file.status == 'pending' %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            等待同步
+                        </span>
+                        {% elif file.status == 'deleted' %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            已删除
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ file.status }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <span class="text-gray-500 font-medium block text-xs">文件名:</span>
+                    <span class="font-medium text-gray-900 block truncate" title="{{ file.local_path }}">{{ file.local_path | basename }}</span>
+                    <div class="text-xs text-gray-450 font-mono truncate bg-gray-50 p-1.5 rounded">{{ file.local_path }}</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs border-b border-gray-100 pb-2">
+                    <div>
+                        <span class="text-gray-500 block">大小:</span>
+                        <span class="font-mono text-gray-900 font-semibold">{{ file.file_size_bytes }} B</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block">创建时间:</span>
+                        <span class="font-mono text-gray-900 text-xs">{{ file.created_at.strftime('%Y-%m-%d %H:%M:%S') if file.created_at else '' }}</span>
+                    </div>
+                </div>
+
+                <div class="text-xs flex justify-between items-center">
+                    <div>
+                        <span class="text-gray-500 font-medium">过期时间:</span>
+                        <span class="font-mono text-gray-700 ml-1">{{ file.expires_at.strftime('%Y-%m-%d %H:%M:%S') if file.expires_at else '无' }}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        {% if file.status != 'deleted' %}
+                        <a href="/web/files/{{ file.id }}/download" 
+                           class="text-indigo-650 hover:text-indigo-900 flex items-center bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition text-xs font-medium">
+                            下载
+                        </a>
+                        <form action="/web/files/{{ file.id }}/delete" method="post" onsubmit="return confirm('确定要软删除并清理该文件吗？');" class="inline">
+                            <button type="submit" 
+                                    class="text-red-650 hover:text-red-900 flex items-center bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition text-xs font-medium">
+                                删除
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-gray-400 italic text-xs">无可用操作</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
         </div>
     </div>
 </div>

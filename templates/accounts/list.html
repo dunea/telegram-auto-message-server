@@ -2,10 +2,10 @@
 {% from "_partials/empty_state.html" import empty_state %}
 {% block title %}账号管理 - {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-    <div class="flex justify-between items-center mb-6">
+<div>
+    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
         <h1 class="text-2xl font-bold text-gray-900">账号管理</h1>
-        <a href="/web/accounts/new" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+        <a href="/web/accounts/new" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto">
             导入/登录账号
         </a>
     </div>
@@ -13,23 +13,25 @@
     <div class="bg-white shadow overflow-hidden sm:rounded-md">
         <ul role="list" class="divide-y divide-gray-200">
             {% for account in accounts %}
-            <li class="p-6 hover:bg-gray-50 transition duration-150">
-                <div class="flex items-center justify-between">
+            <li class="p-4 sm:p-6 hover:bg-gray-50 transition duration-150">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="flex items-center min-w-0">
-                        <div class="ml-4">
+                        <div class="min-w-0">
                             <p class="text-lg font-medium text-indigo-600 truncate">
                                 <a href="/web/accounts/{{ account.id }}" class="hover:underline">
                                     {{ account.phone_number }}
                                 </a>
                             </p>
-                            <p class="text-sm text-gray-500 mt-1">
-                                名称: {{ account.display_name or "未登录" }} 
-                                | ID: {{ account.telegram_user_id or "-" }}
-                                | 代理: {% if account.proxy_id and proxies.get(account.proxy_id) %}{{ proxies.get(account.proxy_id).proxy_host }}:{{ proxies.get(account.proxy_id).proxy_port }}{% else %}无{% endif %}
+                            <p class="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                                <span>名称: {{ account.display_name or "未登录" }}</span>
+                                <span class="hidden sm:inline">|</span>
+                                <span>ID: {{ account.telegram_user_id or "-" }}</span>
+                                <span class="hidden sm:inline">|</span>
+                                <span>代理: {% if account.proxy_id and proxies.get(account.proxy_id) %}{{ proxies.get(account.proxy_id).proxy_host }}:{{ proxies.get(account.proxy_id).proxy_port }}{% else %}无{% endif %}</span>
                             </p>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-4">
+                    <div class="flex flex-wrap items-center gap-3 sm:space-x-4">
                         <!-- Online/Offline Badge -->
                         <div>
                             {% if account.is_online %}
@@ -44,18 +46,16 @@
                         </div>
 
                         <!-- Active Toggle with HTMX -->
-                        <div id="status-badge-{{ account.id }}">
-                            <button hx-post="/web/accounts/{{ account.id }}/toggle-active"
-                                    hx-target="#status-badge-{{ account.id }}"
-                                    hx-swap="outerHTML"
-                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
-                                {% if account.is_active %}
-                                <span class="text-green-600 font-bold">● 启用中</span>
-                                {% else %}
-                                <span class="text-red-500 font-bold">○ 已禁用</span>
-                                {% endif %}
-                            </button>
-                        </div>
+                        <button hx-post="/web/accounts/{{ account.id }}/toggle-active"
+                                hx-target="this"
+                                hx-swap="outerHTML"
+                                class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                            {% if account.is_active %}
+                            <span class="text-green-600 font-bold">● 启用中</span>
+                            {% else %}
+                            <span class="text-red-500 font-bold">○ 已禁用</span>
+                            {% endif %}
+                        </button>
 
                         <!-- Actions -->
                         <div class="flex space-x-2">

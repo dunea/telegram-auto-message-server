@@ -2,7 +2,7 @@
 {% from "_partials/empty_state.html" import empty_state %}
 {% block title %}群发与历史消息记录 - {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div>
     <!-- Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
@@ -37,7 +37,8 @@
     </div>
 
     <!-- Message List Table -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <!-- Desktop Table View -->
+    <div class="hidden sm:block bg-white shadow overflow-hidden sm:rounded-lg">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -54,7 +55,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% if not messages %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10">
+                        <td colspan="7" class="px-6 py-10 text-center">
                             {{ empty_state("暂无消息记录", "消息发送后会显示在这里。") }}
                         </td>
                     </tr>
@@ -135,6 +136,92 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="block sm:hidden space-y-4">
+        {% if not messages %}
+        <div class="bg-white shadow rounded-lg p-6 text-center">
+            {{ empty_state("暂无消息记录", "消息发送后会显示在这里。") }}
+        </div>
+        {% endif %}
+        {% for msg in messages %}
+        <div class="bg-white shadow rounded-lg p-4 space-y-3 text-sm">
+            <div class="flex justify-between items-center text-xs text-gray-500 font-mono">
+                <span>{{ msg.created_at.strftime('%Y-%m-%d %H:%M:%S') if msg.created_at else '' }}</span>
+                <div>
+                    {% if msg.direction == 'in' %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        入站
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        出站
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs border-b border-gray-100 pb-2">
+                <div>
+                    <span class="text-gray-500 block">托管账号:</span>
+                    {% set acc = accounts_map.get(msg.account_id) %}
+                    <span class="font-medium text-gray-900 truncate block">
+                        {% if acc %}{{ acc.display_name or acc.phone_number }}{% else %}未知 (ID: {{ msg.account_id }}){% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span class="text-gray-500 block">会话 Target:</span>
+                    <span class="font-mono text-gray-900 truncate block">{{ msg.conversation_peer or '未知' }}</span>
+                </div>
+            </div>
+
+            <div class="text-xs pt-1 flex justify-between items-center">
+                <div>
+                    <span class="text-gray-500 font-medium">内容类型:</span>
+                    <span class="text-gray-700 ml-1">{{ msg.content_type }}</span>
+                </div>
+                <div>
+                    {% if msg.status == 'sent' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        已发送
+                    </span>
+                    {% elif msg.status == 'failed' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800" title="{{ msg.error_message }}">
+                        失败
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                        等待发送
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="text-xs">
+                <span class="text-gray-500 font-medium block mb-1">消息内容:</span>
+                <div class="bg-gray-50 p-2.5 rounded text-gray-700 break-all">
+                    {% if msg.content_type == 'media' %}
+                        <span class="text-xs text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded block mb-1 w-max">
+                            [媒体: {{ msg.media_type }}]
+                        </span>
+                        {% if msg.text_content %}
+                            <p>{{ msg.text_content }}</p>
+                        {% endif %}
+                        {% if msg.media_url %}
+                            <div class="mt-1 text-xs text-gray-400 font-mono truncate font-semibold">
+                                URL: <a href="{{ msg.media_url }}" target="_blank" class="underline hover:text-indigo-650">{{ msg.media_url }}</a>
+                            </div>
+                        {% endif %}
+                    {% elif msg.content_type == 'emoji' %}
+                        <span class="text-lg">{{ msg.emoji }}</span>
+                    {% else %}
+                        <p class="whitespace-pre-wrap">{{ msg.text_content or '' }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </div>
 

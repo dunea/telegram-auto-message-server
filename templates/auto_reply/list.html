@@ -2,7 +2,7 @@
 {% from "_partials/empty_state.html" import empty_state %}
 {% block title %}自动回复规则 - {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div>
     <!-- Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
@@ -35,7 +35,8 @@
     </div>
 
     <!-- Rule List -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <!-- Desktop Table View -->
+    <div class="hidden sm:block bg-white shadow overflow-hidden sm:rounded-lg">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -45,7 +46,7 @@
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">触发关键词/范围</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">回复内容</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                        <th scope="col" class="px-6 py-3 class=text-right px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -117,21 +118,22 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <!-- Active Toggle using HTMX -->
-                            <div id="status-badge-{{ rule.rule_id }}">
-                                <button hx-post="/web/auto-reply/{{ rule.rule_id }}/toggle-active"
-                                        hx-target="#status-badge-{{ rule.rule_id }}"
-                                        hx-swap="outerHTML"
-                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
-                                    {% if rule.is_active %}
-                                    <span class="text-green-600 font-bold">● 启用中</span>
-                                    {% else %}
-                                    <span class="text-red-500 font-bold">○ 已禁用</span>
-                                    {% endif %}
-                                </button>
-                            </div>
+                            <button hx-post="/web/auto-reply/{{ rule.rule_id }}/toggle-active"
+                                    hx-target="this"
+                                    hx-swap="outerHTML"
+                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                                {% if rule.is_active %}
+                                <span class="text-green-600 font-bold">● 启用中</span>
+                                {% else %}
+                                <span class="text-red-500 font-bold">○ 已禁用</span>
+                                {% endif %}
+                            </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div class="flex items-center justify-end gap-2">
+                                <a href="/web/auto-reply/{{ rule.rule_id }}/messages" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition" title="配置随机回复消息池">
+                                    消息池
+                                </a>
                                 <a href="/web/auto-reply/{{ rule.rule_id }}/edit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition">
                                     编辑
                                 </a>
@@ -145,7 +147,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="px-6 py-12">
+                        <td colspan="6" class="px-6 py-12 text-center">
                             {{ empty_state("暂无任何自动回复规则", "您可以点击右上角“添加自动回复规则”按钮进行创建") }}
                         </td>
                     </tr>
@@ -153,6 +155,110 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="block sm:hidden space-y-4">
+        {% for rule in rules %}
+        <div class="bg-white shadow rounded-lg p-4 space-y-3">
+            <div class="flex justify-between items-start">
+                <div>
+                    {% set acc = accounts_map.get(rule.account_id) %}
+                    {% if acc %}
+                        <span class="font-medium text-indigo-600 text-sm block">{{ acc.display_name or acc.phone_number }}</span>
+                    {% else %}
+                        <span class="text-gray-400 text-sm block">未知账号 (ID: {{ rule.account_id }})</span>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if rule.trigger_mode == "keyword" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            关键词触发
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            全回复
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Trigger keywords/scope -->
+            <div class="text-xs space-y-1 bg-gray-50 p-2 rounded">
+                <div>
+                    <span class="text-gray-550 font-medium">触发词:</span>
+                    {% if rule.trigger_mode == "keyword" %}
+                        <span class="font-mono text-gray-800">
+                            {% if rule.keywords %}
+                                {{ rule.keywords | join(', ') }}
+                            {% else %}
+                                {{ rule.trigger_keyword or "-" }}
+                            {% endif %}
+                        </span>
+                    {% else %}
+                        <span class="text-gray-400 italic">所有接收到的消息</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <span class="text-gray-555 font-medium">范围:</span>
+                    {% if rule.scope_mode == "specific" %}
+                        <span class="text-red-500 font-medium">指定会话: {{ rule.conversation_ids | join(', ') }}</span>
+                    {% else %}
+                        <span class="text-gray-400">全部私聊与群组</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Reply Content -->
+            <div class="text-xs text-gray-700">
+                <span class="text-gray-500 font-medium block mb-0.5">回复内容:</span>
+                {% if rule.reply_messages %}
+                    <div class="text-indigo-600 font-semibold flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        多消息池 ({{ rule.reply_messages | length }} 条备选)
+                    </div>
+                    <div class="text-gray-500 mt-1 line-clamp-2 italic">
+                        示例: "{{ rule.reply_messages[0].text }}"
+                    </div>
+                {% else %}
+                    <p class="line-clamp-2 italic">{{ rule.reply_content or "(空)" }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Toggle Status & Actions -->
+            <div class="flex justify-between items-center pt-2 border-t border-gray-100">
+                <button hx-post="/web/auto-reply/{{ rule.rule_id }}/toggle-active"
+                        hx-target="this"
+                        hx-swap="outerHTML"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                    {% if rule.is_active %}
+                    <span class="text-green-600 font-bold">● 启用中</span>
+                    {% else %}
+                    <span class="text-red-500 font-bold">○ 已禁用</span>
+                    {% endif %}
+                </button>
+                <div class="flex gap-2">
+                    <a href="/web/auto-reply/{{ rule.rule_id }}/messages" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition">
+                        消息池
+                    </a>
+                    <a href="/web/auto-reply/{{ rule.rule_id }}/edit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition">
+                        编辑
+                    </a>
+                    <form action="/web/auto-reply/{{ rule.rule_id }}/delete" method="POST" onsubmit="return confirm('确认删除该自动回复规则吗？')" class="inline">
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition">
+                            删除
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white shadow rounded-lg p-6">
+            {{ empty_state("暂无任何自动回复规则", "您可以点击右上角“添加自动回复规则”按钮进行创建") }}
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

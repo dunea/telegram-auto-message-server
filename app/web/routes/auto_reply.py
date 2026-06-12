@@ -225,9 +225,8 @@ async def toggle_rule_active(
     color_class = "text-green-600 font-bold" if updated_rule["is_active"] else "text-red-500 font-bold"
     
     return HTMLResponse(f"""
-        <button id="status-badge-{rule_id}"
-                hx-post="/web/auto-reply/{rule_id}/toggle-active"
-                hx-target="#status-badge-{rule_id}"
+        <button hx-post="/web/auto-reply/{rule_id}/toggle-active"
+                hx-target="this"
                 hx-swap="outerHTML"
                 class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
             <span class="{color_class}">{label}</span>
@@ -245,4 +244,68 @@ async def delete_rule(
         await auto_reply_service.SoftDeleteRule(rule_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="规则不存在")
+    return RedirectResponse(url="/web/auto-reply", status_code=303)
+
+
+@router.get("/auto-reply/{rule_id}/messages", response_class=HTMLResponse)
+async def rule_messages_page(
+    rule_id: int,
+    request: Request,
+    user_id: int = Depends(get_current_user_from_cookie),
+    db_session: AsyncSession = Depends(get_db_session),
+    auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+):
+    try:
+        rule = await auto_reply_service.GetRuleById(rule_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="规则不存在")
+        
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    accounts_map = {acc.id: acc for acc in accounts}
+    account = accounts_map.get(rule["account_id"])
+    files = (await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))).all()
+    
+    return templates.TemplateResponse(request, "auto_reply/messages.html", {
+        "user_id": user_id,
+        "rule": rule,
+        "account": account,
+        "files": files,
+    })
+
+
+@router.post("/auto-reply/{rule_id}/messages")
+async def update_rule_messages(
+    rule_id: int,
+    reply_messages_text: list[str] = Form(None),
+    reply_messages_file_id: list[str] = Form(None),
+    user_id: int = Depends(get_current_user_from_cookie),
+    auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+):
+    reply_msgs_objs = []
+    if reply_messages_text:
+        for idx, text in enumerate(reply_messages_text):
+            text_str = text.strip()
+            file_id_val = None
+            if reply_messages_file_id and idx < len(reply_messages_file_id):
+                fid_str = str(reply_messages_file_id[idx]).strip()
+                if fid_str and fid_str.isdigit():
+                    file_id_val = int(fid_str)
+            if text_str or file_id_val:
+                media_items = []
+                if file_id_val:
+                    media_items.append(ReplyMessageMediaItem(file_record_id=file_id_val, sort_order=0))
+                reply_msgs_objs.append(ReplyMessageCreate(
+                    text=text_str,
+                    sort_order=idx,
+                    media=media_items
+                ))
+                
+    try:
+        await auto_reply_service.UpdateRule(
+            rule_id=rule_id,
+            reply_messages=reply_msgs_objs,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+        
     return RedirectResponse(url="/web/auto-reply", status_code=303)

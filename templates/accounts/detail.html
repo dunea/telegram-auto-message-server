@@ -2,22 +2,22 @@
 {% from "_partials/empty_state.html" import empty_state %}
 {% block title %}账号详情 - {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-    <div class="mb-6 flex justify-between items-center">
-        <a href="/web/accounts" class="text-indigo-600 hover:text-indigo-900 font-medium flex items-center gap-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<div>
+    <div class="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <a href="/web/accounts" class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-4 py-2.5 rounded-lg w-full sm:w-auto sm:bg-transparent sm:p-0">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             返回账号列表
         </a>
-        <div class="flex gap-2">
+        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <button hx-post="/web/accounts/{{ account.id }}/online"
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                    class="inline-flex justify-center items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 w-full sm:w-auto">
                 一键上线 / 刷新
             </button>
             <button hx-post="/web/accounts/{{ account.id }}/delete"
                     hx-confirm="确认软删除该账号吗？"
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                    class="inline-flex justify-center items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 w-full sm:w-auto">
                 停用并删除
             </button>
         </div>
