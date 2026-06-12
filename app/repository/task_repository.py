@@ -125,10 +125,11 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
         return int((await self._session.scalar(stmt)) or 0)
 
     async def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
+        from sqlalchemy.orm import selectinload
         stmt = select(AutoReplyRule).where(
             AutoReplyRule.account_id == account_id,
             AutoReplyRule.is_active == is_active,
-        )
+        ).options(selectinload(AutoReplyRule.reply_messages))
         return list((await self._session.scalars(stmt)).all())
 
     async def UpdateById(

@@ -18,6 +18,7 @@ class TelegramAdapter:
         self._client_cache: dict[int, dict[str, Any]] = {}
         self._cache_recycled_count = 0
         self._cache_calls_count = 0
+        self.new_message_callback = None
 
     def _log_cache_event(self, event: str, **fields: object) -> None:
         payload = {
@@ -131,6 +132,17 @@ class TelegramAdapter:
                 "failed_count": 0,
             }
             self._client_cache[account_id] = cached
+
+            if self.new_message_callback:
+                telethon_events = importlib.import_module("telethon.events")
+
+                async def _message_handler(event: Any) -> None:
+                    try:
+                        await self.new_message_callback(account_id, event)
+                    except Exception as e:
+                        print(f"Error in new_message_callback for account {account_id}: {e}")
+
+                client.add_event_handler(_message_handler, telethon_events.NewMessage(incoming=True))
 
         client = cached["client"]
 

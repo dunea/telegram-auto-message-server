@@ -3,17 +3,13 @@ import json
 import logging
 import random
 from datetime import datetime
+from typing import Any
 from time import perf_counter
 
-from app.adapter.mysql_adapter import build_session_factory, build_session_factory
+from app.adapter.mysql_adapter import build_session_factory
 from app.adapter.telegram_adapter import TelegramAdapter
-from app.repository.account_repository import SqlAlchemyTelegramAccountRepository, SqlAlchemyTelegramAccountRepository
+from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
 from app.repository.message_repository import (
-    SqlAlchemyMessageContentMediaRepository,
-    SqlAlchemyMessageContentRepository,
-    SqlAlchemyTelegramMessageMediaRepository,
-    SqlAlchemyTelegramMessageRepository,
-    SqlAlchemyTelegramMessageSendAttemptRepository,
     SqlAlchemyMessageContentMediaRepository,
     SqlAlchemyMessageContentRepository,
     SqlAlchemyTelegramMessageMediaRepository,
@@ -24,18 +20,14 @@ from app.repository.task_repository import (
     SqlAlchemyRuleMessageTaskRepository,
     SqlAlchemyScheduledMessageTaskRepository,
     SqlAlchemyTaskExecutionLogRepository,
-    SqlAlchemyRuleMessageTaskRepository,
-    SqlAlchemyScheduledMessageTaskRepository,
-    SqlAlchemyTaskExecutionLogRepository,
 )
 from app.repository.file_repository import SqlAlchemyFileRecordRepository
 from app.service.file_service import FileService
-from app.service.task_service import TaskService, TaskService
+from app.service.task_service import TaskService
 from app.service.telegram_service import TelegramService
 from app.adapter.s3_adapter import S3Adapter
 from app.worker.task_scheduler import TaskScheduler
 from app.common.error_classifier import classify_exception
-
 from app.config import Settings
 
 
@@ -56,6 +48,7 @@ class PoolRunner:
         self._login_semaphore = asyncio.Semaphore(max(1, settings.pool_max_concurrent_logins))
         self._session_factory = build_session_factory(settings)
         self._telegram_adapter = TelegramAdapter(settings=settings)
+        self._telegram_adapter.new_message_callback = self._handle_incoming_message
         self._task_scheduler = TaskScheduler()
         self._shard_signature = (
             int(settings.pool_total_shards),
@@ -323,3 +316,140 @@ class PoolRunner:
                 await asyncio.sleep(self._settings.pool_login_scan_interval_seconds)
         finally:
             await self._task_scheduler.Shutdown()
+
+    async def _handle_incoming_message(self, account_id: int, event: Any) -> None:
+        """接收新消息的事件处理器，保存消息并在命中规则时自动回复。"""
+        message = getattr(event, "message", None)
+        if message is None:
+            return
+
+        text = str(getattr(message, "message", "") or "").strip()
+        peer_type, peer_id = self._telegram_adapter._extract_peer(getattr(message, "peer_id", None))
+        telegram_message_id = int(getattr(message, "id", 0) or 0)
+        sender_id = int(getattr(message, "sender_id", 0) or 0)
+
+        # 仅针对有效的消息内容和会话处理
+        if not telegram_message_id:
+            return
+
+        try:
+            async with self._session_factory() as session:
+                account_repository = SqlAlchemyTelegramAccountRepository(session)
+                account = await account_repository.FindById(account_id)
+                if not account or not account.is_active:
+                    return
+
+                account_telegram_user_id = int(account.telegram_user_id) if account.telegram_user_id else 0
+                if sender_id and sender_id == account_telegram_user_id:
+                    # 过滤自己发送的消息
+                    return
+
+                conversation_peer = str(sender_id) if sender_id else "unknown"
+
+                # 检查去重，避免重复处理
+                message_repository = SqlAlchemyTelegramMessageRepository(session)
+                existed = await message_repository.FindByAccountIdAndConversationPeerAndTelegramMessageId(
+                    account_id=account_id,
+                    conversation_peer=conversation_peer,
+                    telegram_message_id=telegram_message_id,
+                )
+                if existed is not None:
+                    return
+
+                # 保存新收到的消息落库
+                from app.models.enums import MessageDirection, MessageSendStatus, MessageSourceType, MessageContentType
+                from app.models.message import TelegramMessage
+
+                raw_date = getattr(message, "date", None)
+                message_at = raw_date if isinstance(raw_date, datetime) else None
+                reply_to_telegram_message_id = self._telegram_adapter._extract_reply_to_msg_id(message)
+
+                message_record = TelegramMessage(
+                    message_content_id=None,
+                    source_type=MessageSourceType.MANUAL,
+                    account_id=account_id,
+                    conversation_id=sender_id or None,
+                    conversation_peer=conversation_peer,
+                    grouped_id=int(getattr(message, "grouped_id", None)) if getattr(message, "grouped_id", None) is not None else None,
+                    group_index=0,
+                    peer_type=peer_type,
+                    peer_id=peer_id,
+                    sender_telegram_user_id=sender_id or None,
+                    direction=MessageDirection.IN,
+                    content_type=MessageContentType.TEXT,
+                    text_content=text,
+                    media_type=None,
+                    media_url=None,
+                    media_key=None,
+                    emoji=None,
+                    status=MessageSendStatus.SENT,
+                    telegram_message_id=telegram_message_id,
+                    reply_to_telegram_message_id=reply_to_telegram_message_id,
+                    forward_from_telegram_user_id=None,
+                    source_message_id=None,
+                    task_execution_log_id=None,
+                    error_message=None,
+                    sent_at=None,
+                    message_at=message_at or datetime.utcnow(),
+                )
+                await message_repository.Save(message_record)
+                await session.commit()
+
+                # 匹配自动回复规则
+                from app.repository.task_repository import SqlAlchemyAutoReplyRuleRepository
+                from app.service.auto_reply_service import AutoReplyService
+
+                auto_reply_rule_repository = SqlAlchemyAutoReplyRuleRepository(session)
+                auto_reply_service = AutoReplyService(
+                    session=session,
+                    auto_reply_rule_repository=auto_reply_rule_repository,
+                )
+
+                reply_content = await auto_reply_service.MatchAutoReply(
+                    account_id=account_id,
+                    content=text,
+                    peer_id=sender_id,
+                )
+
+                if reply_content:
+                    # 触发自动回复发送
+                    self._log_event(
+                        "auto_reply_matched",
+                        account_id=account_id,
+                        peer_id=sender_id,
+                        trigger_text=text,
+                        reply_content=reply_content,
+                    )
+
+                    # 构造 TelegramService 并发送回复
+                    message_content_repository = SqlAlchemyMessageContentRepository(session)
+                    message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
+                    message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
+                    message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
+
+                    telegram_service = TelegramService(
+                        settings=self._settings,
+                        session=session,
+                        account_repository=account_repository,
+                        message_content_repository=message_content_repository,
+                        message_content_media_repository=message_content_media_repository,
+                        message_repository=message_repository,
+                        message_media_repository=message_media_repository,
+                        message_send_attempt_repository=message_send_attempt_repository,
+                        telegram_adapter=self._telegram_adapter,
+                    )
+
+                    await telegram_service.SendMessage(
+                        account_id=account_id,
+                        target_identifier=conversation_peer,
+                        content=reply_content,
+                        content_type=MessageContentType.TEXT,
+                        source_type=MessageSourceType.AUTO_REPLY,
+                    )
+        except Exception as e:
+            self._log_event(
+                "incoming_message_handle_failed",
+                level="ERROR",
+                account_id=account_id,
+                error=str(e),
+            )
