@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 import logging
 from typing import NoReturn
 
+from sqlalchemy import text
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
@@ -50,6 +52,65 @@ def register_global_exception_handlers(app: FastAPI) -> None:
             return await http_exception_handler(request, exc)
         logger.exception("Unhandled exception on API request")
         return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})
+
+
+async def _sqlite_auto_migrate(settings: Settings) -> None:
+    """SQLite 本地测试库专用：自动建表并补齐缺失列，保留已有数据。
+
+    逻辑：
+    1. create_all(checkfirst=True)：创建所有尚不存在的表。
+    2. PRAGMA table_info：检测每张表中 ORM 模型声明的列是否存在，
+       对缺失列执行 ALTER TABLE ... ADD COLUMN 补齐。
+
+    MySQL 生产库不走此逻辑，由 alembic upgrade head 手动管理。
+    """
+    import app.models  # noqa: F401 — 注册所有 ORM 模型元数据，确保 metadata 完整
+    from app.adapter.mysql_adapter import _get_or_create_engine
+    from app.models.base import Base
+
+    engine = _get_or_create_engine(settings)
+
+    async with engine.begin() as conn:
+        # 第一步：创建所有不存在的表（已存在的表跳过）
+        await conn.run_sync(Base.metadata.create_all)
+
+        # 第二步：检查并补齐已存在表中缺失的列
+        for table in Base.metadata.sorted_tables:
+            result = await conn.execute(text(f"PRAGMA table_info({table.name})"))
+            existing_cols = {row[1] for row in result.fetchall()}
+
+            for col in table.columns:
+                if col.name in existing_cols:
+                    continue
+
+                # 拼接列类型（SQLite 兼容）
+                col_type = col.type.compile(dialect=engine.dialect)
+
+                # 确定默认值：ALTER TABLE ADD COLUMN 要求 NOT NULL 列必须有 DEFAULT
+                default_clause = ""
+                if col.default is not None and col.default.is_scalar:
+                    raw = col.default.arg
+                    if isinstance(raw, bool):
+                        default_clause = f" DEFAULT {1 if raw else 0}"
+                    elif isinstance(raw, str):
+                        default_clause = f" DEFAULT '{raw}'"
+                    elif raw is not None:
+                        default_clause = f" DEFAULT {raw}"
+                elif not col.nullable:
+                    # 无默认值的 NOT NULL 列：SQLite 允许 ADD COLUMN 时给 DEFAULT NULL 绕过
+                    # 但逻辑上不应出现此情况，记录警告
+                    logger.warning(
+                        "SQLite 补列警告：%s.%s 为 NOT NULL 但无默认值，跳过",
+                        table.name, col.name,
+                    )
+                    continue
+
+                await conn.execute(
+                    text(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{default_clause}")
+                )
+                logger.info("SQLite 自动补列：%s.%s (%s%s)", table.name, col.name, col_type, default_clause)
+
+    logger.info("SQLite 模式：数据库结构同步完成")
 
 
 async def _reload_active_tasks_to_scheduler(settings: Settings) -> None:
@@ -109,6 +170,10 @@ def create_api_application(settings: Settings) -> FastAPI:
         scheduler = get_task_scheduler()
         await scheduler.Start()
         try:
+            # SQLite 本地测试库：自动建表 + 补齐缺失列，无需手动 alembic upgrade head。
+            # MySQL 生产库保持手动迁移流程（见 README.md）。
+            if settings.mysql_dsn.startswith("sqlite"):
+                await _sqlite_auto_migrate(settings)
             if settings.api_scheduler_enabled:
                 await _reload_active_tasks_to_scheduler(settings)
             else:

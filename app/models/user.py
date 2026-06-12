@@ -26,3 +26,7 @@ class User(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False, comment="用户启用状态"
     )
+    # True 表示管理员，False 表示普通用户，默认为普通用户。
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="是否为管理员"
+    )
