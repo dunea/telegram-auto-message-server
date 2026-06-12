@@ -108,6 +108,9 @@ async def test_pool_runner_auto_reply_flow() -> None:
             target_identifier="22222",
             content="world",
             reply_to_message_id=None,
+            proxy=None,
+            telegram_api_id=None,
+            telegram_api_hash=None,
         )
 
         # 验证接收到的消息与自动发送的回复是否都在数据库成功归档

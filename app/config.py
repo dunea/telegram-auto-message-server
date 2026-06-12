@@ -25,12 +25,16 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     log_level: str = "INFO"
+    api_scheduler_enabled: bool = Field(default=True, description="API 模式下是否启用业务消息任务调度器。如果部署了独立的 pool 实例，建议在 API 端设为 False。")
 
     pool_instance_id: str = "pool-1"
     pool_max_concurrent_logins: int = Field(default=20, ge=1)
     pool_total_shards: int = Field(default=1, ge=1)
     pool_shard_index: int = Field(default=0, ge=0)
     pool_login_scan_interval_seconds: int = Field(default=30, ge=5)
+    pool_heartbeat_interval_seconds: int = Field(default=30, ge=5, description="号池实例心跳刷新与分片重新计算的间隔（秒）")
+    pool_heartbeat_timeout_seconds: int = Field(default=120, ge=10, description="死节点心跳超时时间（秒），超过该时间的实例会被从分片计算中剔除")
+    pool_message_cooldown_seconds: float = Field(default=5.0, ge=0.0, description="同一个账号发送消息的最小冷却时间（秒）")
     pool_login_timeout_seconds: int = Field(default=30, ge=5)
     pool_login_max_retries: int = Field(default=3, ge=1, le=10)
     pool_login_retry_backoff_seconds: int = Field(default=2, ge=1)

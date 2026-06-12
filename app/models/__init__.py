@@ -3,7 +3,7 @@
 导入本包时会顺带注册所有模型与枚举，避免元数据加载不完整。
 """
 
-from app.models.account import ProxyInfo, TelegramAccount
+from app.models.account import ProxyInfo, TelegramAccount, InstanceHeartbeat
 from app.models.enums import (
 	ErrorClass,
 	MessageAttemptStatus,

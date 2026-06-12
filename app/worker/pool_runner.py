@@ -2,12 +2,13 @@ import asyncio
 import json
 import logging
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 from time import perf_counter
 
 from app.adapter.mysql_adapter import build_session_factory
 from app.adapter.telegram_adapter import TelegramAdapter
+from app.models.account import InstanceHeartbeat
 from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
 from app.repository.message_repository import (
     SqlAlchemyMessageContentMediaRepository,
@@ -50,10 +51,12 @@ class PoolRunner:
         self._telegram_adapter = TelegramAdapter(settings=settings)
         self._telegram_adapter.new_message_callback = self._handle_incoming_message
         self._task_scheduler = TaskScheduler()
-        self._shard_signature = (
-            int(settings.pool_total_shards),
-            int(settings.pool_shard_index),
-        )
+
+        # 初始化动态分片参数，默认从配置读取，后续由数据库心跳自动调整
+        self._total_shards = int(settings.pool_total_shards)
+        self._shard_index = int(settings.pool_shard_index)
+        self._dynamic_shard_signature = (self._total_shards, self._shard_index)
+
         self._consecutive_degraded_rounds = 0
 
     def _log_event(self, event: str, level: str = "INFO", **fields: object) -> None:
@@ -68,29 +71,90 @@ class PoolRunner:
         logger.log(level_no, json.dumps(payload, ensure_ascii=False))
 
     def _assert_shard_guard(self) -> None:
-        if not self._settings.pool_shard_guard_enabled:
-            return
-
-        current_signature = (
-            int(self._settings.pool_total_shards),
-            int(self._settings.pool_shard_index),
-        )
-        if current_signature != self._shard_signature:
-            raise RuntimeError(
-                "检测到号池分片配置漂移，已触发保护退出："
-                f"baseline={self._shard_signature}, current={current_signature}"
-            )
+        pass
 
     def _belongs_to_current_shard(self, stable_id: int) -> bool:
-        """判断稳定 ID 是否属于当前号池分片。
-
-        说明：
-        1. 账号巡检与任务调度都基于同一分片参数，便于跨服务器水平扩容。
-        2. 分片规则保持纯函数，便于后续在服务层与离线脚本复用。
-        """
-        total_shards = max(1, int(self._settings.pool_total_shards))
-        shard_index = int(self._settings.pool_shard_index)
+        """判断稳定 ID 是否属于当前号池分片。"""
+        total_shards = max(1, int(self._total_shards))
+        shard_index = int(self._shard_index)
         return stable_id % total_shards == shard_index
+
+    async def _update_instance_heartbeat_and_recalc_shards(self) -> None:
+        """更新当前实例在数据库的心跳，并动态重新计算分片参数。"""
+        instance_id = self._settings.pool_instance_id or "pool-1"
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        try:
+            async with self._session_factory() as session:
+                # 1. 注册/更新当前实例的心跳时间
+                heartbeat = await session.get(InstanceHeartbeat, instance_id)
+                if not heartbeat:
+                    heartbeat = InstanceHeartbeat(instance_id=instance_id, last_heartbeat=now)
+                    session.add(heartbeat)
+                else:
+                    heartbeat.last_heartbeat = now
+                
+                # 2. 清理超时没有心跳的死节点，防脏数据残留
+                expiration_time = now - timedelta(seconds=self._settings.pool_heartbeat_timeout_seconds)
+                from sqlalchemy import delete
+                await session.execute(delete(InstanceHeartbeat).where(InstanceHeartbeat.last_heartbeat < expiration_time))
+                await session.commit()
+
+                # 3. 查询活跃的节点实例列表
+                from sqlalchemy import select
+                stmt = select(InstanceHeartbeat.instance_id).where(
+                    InstanceHeartbeat.last_heartbeat >= expiration_time
+                ).order_by(InstanceHeartbeat.instance_id)
+                active_ids = list((await session.execute(stmt)).scalars().all())
+
+            # 4. 根据排序后的活跃实例列表，计算动态分片
+            total_shards = len(active_ids)
+            if total_shards == 0:
+                total_shards = 1
+                shard_index = 0
+            else:
+                try:
+                    shard_index = active_ids.index(instance_id)
+                except ValueError:
+                    shard_index = 0
+
+            # 5. 检测到分片分配发生变化，重新载入任务和客户端
+            new_signature = (total_shards, shard_index)
+            if new_signature != self._dynamic_shard_signature:
+                self._log_event(
+                    "shard_reallocated",
+                    level="WARNING",
+                    old_signature=self._dynamic_shard_signature,
+                    new_signature=new_signature,
+                    active_instances=active_ids,
+                )
+                self._dynamic_shard_signature = new_signature
+                self._total_shards = total_shards
+                self._shard_index = shard_index
+
+                # 动态刷新 settings 对象中的取模配置，让下游依赖的 TaskService/TelegramService 能够读取最新配置
+                self._settings.pool_total_shards = total_shards
+                self._settings.pool_shard_index = shard_index
+
+                # 断开已不再归属于自己分片的 Telegram 账号客户端长连接
+                await self._telegram_adapter.RecycleOutofShardClients(self._belongs_to_current_shard)
+
+                # 重新载入属于自己的定时与规则任务到调度器中
+                await self._reload_sharded_tasks()
+        except Exception as e:
+            self._log_event("shard_recalc_failed", level="ERROR", error=str(e))
+
+    async def _unregister_instance_heartbeat(self) -> None:
+        """从数据库中主动删除当前实例的心跳，加快其他实例接管速度。"""
+        instance_id = self._settings.pool_instance_id or "pool-1"
+        try:
+            async with self._session_factory() as session:
+                from sqlalchemy import delete
+                await session.execute(delete(InstanceHeartbeat).where(InstanceHeartbeat.instance_id == instance_id))
+                await session.commit()
+            self._log_event("instance_unregistered", instance_id=instance_id)
+        except Exception as e:
+            self._log_event("instance_unregister_failed", level="WARNING", error=str(e))
 
     async def _reload_sharded_tasks(self) -> None:
         async with self._session_factory() as session:
@@ -298,10 +362,27 @@ class PoolRunner:
                 degraded=is_degraded,
             )
 
+    async def _heartbeat_loop(self) -> None:
+        """后台心跳循环，确保心跳定时发送不受账号巡检耗时影响。"""
+        try:
+            while True:
+                await asyncio.sleep(self._settings.pool_heartbeat_interval_seconds)
+                await self._update_instance_heartbeat_and_recalc_shards()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self._log_event("heartbeat_loop_failed", level="ERROR", error=str(e))
+
     async def run_forever(self) -> None:
+        # 启动时首先更新一次心跳以初始化动态分片参数
+        await self._update_instance_heartbeat_and_recalc_shards()
         await self._task_scheduler.Start()
         self._register_system_jobs()
         await self._reload_sharded_tasks()
+        
+        # 启动独立的后台心跳协程
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        
         try:
             while True:
                 self._assert_shard_guard()
@@ -315,6 +396,12 @@ class PoolRunner:
                 await self._scan_and_login_accounts()
                 await asyncio.sleep(self._settings.pool_login_scan_interval_seconds)
         finally:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            await self._unregister_instance_heartbeat()
             await self._task_scheduler.Shutdown()
 
     async def _handle_incoming_message(self, account_id: int, event: Any) -> None:
@@ -438,6 +525,10 @@ class PoolRunner:
                         message_send_attempt_repository=message_send_attempt_repository,
                         telegram_adapter=self._telegram_adapter,
                     )
+
+                    # 模拟真人阅读和输入延迟，降低封号风险
+                    reply_delay = random.uniform(3.0, 7.0)
+                    await asyncio.sleep(reply_delay)
 
                     await telegram_service.SendMessage(
                         account_id=account_id,

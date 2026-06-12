@@ -99,18 +99,62 @@ class TelegramAdapter:
         cached["failed_count"] = int(cached.get("failed_count") or 0) + 1
         cached["last_used_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    def _build_client(self, session_string: str) -> Any:
+    def _resolve_proxy_config(self, proxy_config: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not proxy_config:
+            return None
+
+        socks_module = importlib.import_module("socks")
+
+        proxy_type_str = str(proxy_config.get("proxy_type") or "socks5").lower().strip()
+        if proxy_type_str == "socks5":
+            t_type = socks_module.SOCKS5
+        elif proxy_type_str == "socks4":
+            t_type = socks_module.SOCKS4
+        elif proxy_type_str == "http":
+            t_type = socks_module.HTTP
+        else:
+            t_type = socks_module.SOCKS5
+
+        res = {
+            "proxy_type": t_type,
+            "addr": proxy_config["proxy_host"],
+            "port": int(proxy_config["proxy_port"]),
+            "rdns": True,
+        }
+        if proxy_config.get("username"):
+            res["username"] = proxy_config["username"]
+        if proxy_config.get("password"):
+            res["password"] = proxy_config["password"]
+
+        return res
+
+    def _build_client(
+        self,
+        session_string: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> Any:
         telethon_module = importlib.import_module("telethon")
         sessions_module = importlib.import_module("telethon.sessions")
 
         telegram_client = getattr(telethon_module, "TelegramClient")
         string_session = getattr(sessions_module, "StringSession")
 
-        if self._settings.telegram_api_id <= 0 or not self._settings.telegram_api_hash:
+        final_api_id = telegram_api_id if (telegram_api_id and telegram_api_id > 0) else self._settings.telegram_api_id
+        final_api_hash = (telegram_api_hash.strip() if telegram_api_hash else "") or self._settings.telegram_api_hash
+
+        if not final_api_id or final_api_id <= 0 or not final_api_hash:
             raise ValueError("telegram_api_id 或 telegram_api_hash 未配置")
 
         session = string_session(session_string or "")
-        return telegram_client(session, self._settings.telegram_api_id, self._settings.telegram_api_hash)
+        resolved_proxy = self._resolve_proxy_config(proxy)
+        return telegram_client(
+            session,
+            final_api_id,
+            final_api_hash,
+            proxy=resolved_proxy,
+        )
 
     async def _is_client_connected(self, client: Any) -> bool:
         connection_state = client.is_connected()
@@ -118,14 +162,26 @@ class TelegramAdapter:
             return bool(await connection_state)
         return bool(connection_state)
 
-    async def EnsureConnected(self, account_id: int, session_string: str) -> Any:
+    async def EnsureConnected(
+        self,
+        account_id: int,
+        session_string: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> Any:
         """确保指定账号对应客户端可用并保持连接。"""
         self._cache_calls_count += 1
         await self._recycle_idle_client_if_needed(account_id)
 
         cached = self._client_cache.get(account_id)
         if cached is None:
-            client = self._build_client(session_string=session_string)
+            client = self._build_client(
+                session_string=session_string,
+                proxy=proxy,
+                telegram_api_id=telegram_api_id,
+                telegram_api_hash=telegram_api_hash,
+            )
             cached = {
                 "client": client,
                 "last_used_at": datetime.now(timezone.utc).replace(tzinfo=None),
@@ -180,8 +236,21 @@ class TelegramAdapter:
             return None
         return int(reply_id)
 
-    async def IsAuthorized(self, account_id: int, session_string: str) -> bool:
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+    async def IsAuthorized(
+        self,
+        account_id: int,
+        session_string: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> bool:
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         try:
             is_authorized = bool(await self._call_with_timeout(client.is_user_authorized()))
             self._mark_client_used(account_id)
@@ -194,9 +263,23 @@ class TelegramAdapter:
             self._emit_cache_stats_if_needed()
             raise
 
-    async def RequestLoginCode(self, account_id: int, phone_number: str, session_string: str) -> str:
+    async def RequestLoginCode(
+        self,
+        account_id: int,
+        phone_number: str,
+        session_string: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> str:
         """请求 Telegram 登录验证码，返回 phone_code_hash。"""
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         sent = await self._call_with_timeout(client.send_code_request(phone_number=phone_number))
         phone_code_hash = str(getattr(sent, "phone_code_hash", "") or "")
         if not phone_code_hash:
@@ -210,9 +293,18 @@ class TelegramAdapter:
         phone_number: str,
         phone_code_hash: str,
         code: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
     ) -> tuple[bool, bool]:
         """使用验证码登录。返回 (是否已完成登录, 是否需要二级密码)。"""
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         errors_module = importlib.import_module("telethon.errors")
         session_password_needed_error = getattr(errors_module, "SessionPasswordNeededError")
         try:
@@ -224,22 +316,62 @@ class TelegramAdapter:
         except session_password_needed_error:
             return False, True
 
-    async def SignInWithPassword(self, account_id: int, session_string: str, password: str) -> bool:
+    async def SignInWithPassword(
+        self,
+        account_id: int,
+        session_string: str,
+        password: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> bool:
         """使用二级密码完成登录。"""
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         await self._call_with_timeout(client.sign_in(password=password))
         self._mark_client_used(account_id)
         return True
 
-    async def ExportSessionString(self, account_id: int, session_string: str) -> str:
+    async def ExportSessionString(
+        self,
+        account_id: int,
+        session_string: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> str:
         """导出当前客户端会话串。"""
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         exported = client.session.save()
         return str(exported or "")
 
-    async def GetSelfProfile(self, account_id: int, session_string: str) -> dict[str, Any]:
+    async def GetSelfProfile(
+        self,
+        account_id: int,
+        session_string: str,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> dict[str, Any]:
         """获取当前授权账号的基础信息。"""
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         me = await self._call_with_timeout(client.get_me())
         if me is None:
             return {"telegram_user_id": None, "display_name": None}
@@ -252,8 +384,22 @@ class TelegramAdapter:
             "display_name": display_name,
         }
 
-    async def ListDialogs(self, account_id: int, session_string: str, limit: int) -> list[dict[str, Any]]:
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+    async def ListDialogs(
+        self,
+        account_id: int,
+        session_string: str,
+        limit: int,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
+    ) -> list[dict[str, Any]]:
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         dialogs = await self._call_with_timeout(client.get_dialogs(limit=limit))
 
         result: list[dict[str, Any]] = []
@@ -274,8 +420,17 @@ class TelegramAdapter:
         session_string: str,
         target_identifier: str,
         limit: int,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
     ) -> list[dict[str, Any]]:
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         entity = await self._call_with_timeout(client.get_entity(target_identifier))
         messages = await self._call_with_timeout(client.get_messages(entity, limit=limit))
 
@@ -312,8 +467,17 @@ class TelegramAdapter:
         media_url: str | None = None,
         media_caption: str | None = None,
         reply_to_message_id: int | None = None,
+        proxy: dict[str, Any] | None = None,
+        telegram_api_id: int | None = None,
+        telegram_api_hash: str | None = None,
     ) -> dict[str, Any]:
-        client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
+        client = await self.EnsureConnected(
+            account_id=account_id,
+            session_string=session_string,
+            proxy=proxy,
+            telegram_api_id=telegram_api_id,
+            telegram_api_hash=telegram_api_hash,
+        )
         if media_url:
             sent_message = await self._call_with_timeout(
                 client.send_file(
@@ -346,3 +510,10 @@ class TelegramAdapter:
             "reply_to_message_id": self._extract_reply_to_msg_id(sent_message),
             "sender_id": int(getattr(sent_message, "sender_id", 0) or 0),
         }
+
+    async def RecycleOutofShardClients(self, belongs_to_shard_fn: Callable[[int], bool]) -> None:
+        """从缓存中回收不再属于当前分片的所有 Telegram 客户端。"""
+        account_ids = list(self._client_cache.keys())
+        for account_id in account_ids:
+            if not belongs_to_shard_fn(account_id):
+                await self._drop_client(account_id)

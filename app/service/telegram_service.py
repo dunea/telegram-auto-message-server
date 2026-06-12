@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapter.telegram_adapter import TelegramAdapter
 from app.config import Settings
-from app.models.account import TelegramAccount
+from app.models.account import TelegramAccount, ProxyInfo
 from app.models.enums import (
     MessageAttemptStatus,
     MessageContentType,
@@ -49,6 +49,15 @@ class TelegramService:
     4. PR #7 阶段：``_get_account_or_raise`` 重构为通过 ``SqlAlchemyTelegramAccountRepository``。
     """
 
+    _account_locks: dict[int, asyncio.Lock] = {}
+    _last_sent_times: dict[int, float] = {}
+
+    @classmethod
+    def _get_account_lock(cls, account_id: int) -> asyncio.Lock:
+        if account_id not in cls._account_locks:
+            cls._account_locks[account_id] = asyncio.Lock()
+        return cls._account_locks[account_id]
+
     def __init__(
         self,
         settings: Settings,
@@ -82,6 +91,25 @@ class TelegramService:
         if account is None:
             raise ValueError("账号不存在")
         return account
+
+    async def _get_proxy_dict_for_account(self, account: TelegramAccount) -> dict[str, Any] | None:
+        if not account.proxy_id:
+            return None
+        proxy = await self._session.get(ProxyInfo, account.proxy_id)
+        if not proxy or not proxy.is_active:
+            return None
+        return {
+            "proxy_host": proxy.proxy_host,
+            "proxy_port": proxy.proxy_port,
+            "proxy_type": proxy.proxy_type,
+            "username": proxy.username,
+            "password": proxy.password,
+        }
+
+    def _get_api_credentials_for_account(self, account: TelegramAccount) -> tuple[int | None, str | None]:
+        api_id = int(account.api_id) if account.api_id else None
+        api_hash = str(account.api_hash).strip() if account.api_hash else None
+        return api_id, api_hash
 
     @staticmethod
     def _clean_optional_text(value: str | None) -> str | None:
@@ -182,10 +210,15 @@ class TelegramService:
             account.proxy_id = proxy_id
             await self._session.flush()
 
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         phone_code_hash = await self._telegram_adapter.RequestLoginCode(
             account_id=int(account.id),
             phone_number=account.phone_number,
             session_string=account.session_string or "",
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
         await self._session.commit()
         return {
@@ -200,12 +233,17 @@ class TelegramService:
 
     async def VerifyPhoneLoginCode(self, account_id: int, phone_code_hash: str, code: str) -> dict[str, Any]:
         account = await self._get_account_or_raise(account_id)
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         signed_in, need_password = await self._telegram_adapter.SignInWithCode(
             account_id=int(account.id),
             session_string=account.session_string or "",
             phone_number=account.phone_number,
             phone_code_hash=phone_code_hash,
             code=code,
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
 
         if need_password:
@@ -232,10 +270,15 @@ class TelegramService:
 
     async def VerifyTwoFactorPassword(self, account_id: int, password: str) -> dict[str, Any]:
         account = await self._get_account_or_raise(account_id)
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         await self._telegram_adapter.SignInWithPassword(
             account_id=int(account.id),
             session_string=account.session_string or "",
             password=password,
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
         await self._refresh_account_online_profile(account)
         return {
@@ -259,9 +302,14 @@ class TelegramService:
             account.is_active = True
             await self._session.flush()
 
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         is_authorized = await self._telegram_adapter.IsAuthorized(
             account_id=int(account.id),
             session_string=account.session_string or "",
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
         if not is_authorized:
             raise ValueError("session 无效，账号未完成授权")
@@ -294,13 +342,21 @@ class TelegramService:
         return {**result, "deleted": True}
 
     async def _refresh_account_online_profile(self, account: TelegramAccount) -> None:
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         exported_session = await self._telegram_adapter.ExportSessionString(
             account_id=int(account.id),
             session_string=account.session_string or "",
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
         profile = await self._telegram_adapter.GetSelfProfile(
             account_id=int(account.id),
             session_string=exported_session,
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
         account.session_string = exported_session
         account.telegram_user_id = profile.get("telegram_user_id")
@@ -316,9 +372,14 @@ class TelegramService:
 
     async def EnsureAccountOnline(self, account_id: int) -> dict[str, Any]:
         account = await self._get_account_or_raise(account_id)
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         is_authorized = await self._telegram_adapter.IsAuthorized(
             account_id=int(account.id or 0),
             session_string=account.session_string or "",
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
         account.is_online = bool(is_authorized)
         await self._session.commit()
@@ -330,19 +391,29 @@ class TelegramService:
 
     async def ListConversations(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
         account = await self._get_account_or_raise(account_id)
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         return await self._telegram_adapter.ListDialogs(
             account_id=int(account.id or 0),
             session_string=account.session_string or "",
             limit=limit,
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
 
     async def ListMessages(self, account_id: int, target_identifier: str, limit: int = 50) -> list[dict[str, Any]]:
         account = await self._get_account_or_raise(account_id)
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         messages = await self._telegram_adapter.ListMessages(
             account_id=int(account.id or 0),
             session_string=account.session_string or "",
             target_identifier=target_identifier,
             limit=limit,
+            proxy=proxy_dict,
+            telegram_api_id=api_id,
+            telegram_api_hash=api_hash,
         )
 
         account_telegram_user_id = int(account.telegram_user_id) if account.telegram_user_id else 0
@@ -560,6 +631,8 @@ class TelegramService:
         reply_to_message_id: int | None = None,
     ) -> dict[str, Any]:
         account = await self._get_account_or_raise(account_id)
+        proxy_dict = await self._get_proxy_dict_for_account(account)
+        api_id, api_hash = self._get_api_credentials_for_account(account)
         conversation_id: int | None = int(target_identifier) if target_identifier.isdigit() else None
         message_content, content_media_items = await self._build_message_content(
             account_id=int(account.id),
@@ -624,117 +697,135 @@ class TelegramService:
         sent_ids: list[int] = []
         failure_error: str | None = None
 
-        if send_media_items:
-            for index, media_item in enumerate(send_media_items, start=1):
-                if index > 1:
-                    await asyncio.sleep(random.uniform(1.0, 2.0))
-                attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=index)
-                try:
-                    sent_result = await self._telegram_adapter.SendMessage(
-                        account_id=int(account.id),
-                        session_string=account.session_string or "",
-                        target_identifier=target_identifier,
-                        content=send_text,
-                        media_url=media_item.media_url or media_item.media_key,
-                        media_caption=media_item.caption or message_content.caption,
-                        reply_to_message_id=reply_to_message_id,
-                    )
-                    sent_id = int(sent_result.get("message_id") or 0)
-                    if sent_id > 0:
-                        sent_ids.append(sent_id)
+        account_lock = self._get_account_lock(int(account.id))
+        async with account_lock:
+            last_sent = self._last_sent_times.get(int(account.id), 0.0)
+            now = asyncio.get_event_loop().time()
+            elapsed = now - last_sent
+            cooldown = float(self._settings.pool_message_cooldown_seconds)
+            if elapsed < cooldown:
+                await asyncio.sleep(cooldown - elapsed)
 
-                    if (g_id := sent_result.get("grouped_id")) is not None:
-                        message_record.grouped_id = int(g_id)
-                    message_record.peer_type = self._normalize_peer_type(sent_result.get("peer_type"))
-                    message_record.peer_id = (
-                        int(p_id)
-                        if (p_id := sent_result.get("peer_id")) is not None
-                        else message_record.peer_id
-                    )
-                    message_record.reply_to_telegram_message_id = (
-                        int(r_id)
-                        if (r_id := sent_result.get("reply_to_message_id")) is not None
-                        else message_record.reply_to_telegram_message_id
-                    )
-                    message_record.sender_telegram_user_id = (
-                        int(s_id)
-                        if (s_id := sent_result.get("sender_id")) is not None
-                        else message_record.sender_telegram_user_id
-                    )
-
-                    message_media = TelegramMessageMedia(
-                        telegram_message_id=int(message_record.id or 0),
-                        grouped_id=message_record.grouped_id,
-                        media_type=media_item.media_type,
-                        media_url=media_item.media_url,
-                        media_key=media_item.media_key,
-                        caption=media_item.caption,
-                        telegram_media_id=str(sent_id) if sent_id > 0 else "",
-                        sort_order=media_item.sort_order,
-                    )
-                    await self._message_media_repository.Save(message_media)
-
-                    attempt.status = MessageAttemptStatus.SENT
-                    attempt.telegram_message_id_value = sent_id if sent_id > 0 else None
-                    attempt.error_message = None
-                except Exception as exc:
-                    failure_error = str(exc)
-                    attempt.status = MessageAttemptStatus.FAILED
-                    attempt.telegram_message_id_value = None
-                    attempt.error_message = failure_error
-
-                attempt.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                finished = attempt.finished_at
-                started = attempt.started_at or finished
-                if finished and started:
-                    attempt.duration_ms = int((finished - started).total_seconds() * 1000)
-                if failure_error:
-                    break
-        else:
-            attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id or 0), attempt_no=1)
             try:
-                sent_result = await self._telegram_adapter.SendMessage(
-                    account_id=int(account.id or 0),
-                    session_string=account.session_string or "",
-                    target_identifier=target_identifier,
-                    content=send_text,
-                    reply_to_message_id=reply_to_message_id,
-                )
-                sent_id = int(sent_result.get("message_id") or 0)
-                if sent_id > 0:
-                    sent_ids.append(sent_id)
-                if (g_id := sent_result.get("grouped_id")) is not None:
-                    message_record.grouped_id = int(g_id)
-                message_record.peer_type = self._normalize_peer_type(sent_result.get("peer_type"))
-                message_record.peer_id = (
-                    int(p_id)
-                    if (p_id := sent_result.get("peer_id")) is not None
-                    else message_record.peer_id
-                )
-                message_record.reply_to_telegram_message_id = (
-                    int(r_id)
-                    if (r_id := sent_result.get("reply_to_message_id")) is not None
-                    else message_record.reply_to_telegram_message_id
-                )
-                message_record.sender_telegram_user_id = (
-                    int(s_id)
-                    if (s_id := sent_result.get("sender_id")) is not None
-                    else message_record.sender_telegram_user_id
-                )
-                attempt.status = MessageAttemptStatus.SENT
-                attempt.telegram_message_id_value = sent_id if sent_id > 0 else None
-                attempt.error_message = None
-            except Exception as exc:
-                failure_error = str(exc)
-                attempt.status = MessageAttemptStatus.FAILED
-                attempt.telegram_message_id_value = None
-                attempt.error_message = failure_error
+                if send_media_items:
+                    for index, media_item in enumerate(send_media_items, start=1):
+                        if index > 1:
+                            await asyncio.sleep(random.uniform(1.0, 2.0))
+                        attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=index)
+                        try:
+                            sent_result = await self._telegram_adapter.SendMessage(
+                                account_id=int(account.id),
+                                session_string=account.session_string or "",
+                                target_identifier=target_identifier,
+                                content=send_text,
+                                media_url=media_item.media_url or media_item.media_key,
+                                media_caption=media_item.caption or message_content.caption,
+                                reply_to_message_id=reply_to_message_id,
+                                proxy=proxy_dict,
+                                telegram_api_id=api_id,
+                                telegram_api_hash=api_hash,
+                            )
+                            sent_id = int(sent_result.get("message_id") or 0)
+                            if sent_id > 0:
+                                sent_ids.append(sent_id)
 
-            attempt.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            finished = attempt.finished_at
-            started = attempt.started_at or finished
-            if finished and started:
-                attempt.duration_ms = int((finished - started).total_seconds() * 1000)
+                            if (g_id := sent_result.get("grouped_id")) is not None:
+                                message_record.grouped_id = int(g_id)
+                            message_record.peer_type = self._normalize_peer_type(sent_result.get("peer_type"))
+                            message_record.peer_id = (
+                                int(p_id)
+                                if (p_id := sent_result.get("peer_id")) is not None
+                                else message_record.peer_id
+                            )
+                            message_record.reply_to_telegram_message_id = (
+                                int(r_id)
+                                if (r_id := sent_result.get("reply_to_message_id")) is not None
+                                else message_record.reply_to_telegram_message_id
+                            )
+                            message_record.sender_telegram_user_id = (
+                                int(s_id)
+                                if (s_id := sent_result.get("sender_id")) is not None
+                                else message_record.sender_telegram_user_id
+                            )
+
+                            message_media = TelegramMessageMedia(
+                                telegram_message_id=int(message_record.id or 0),
+                                grouped_id=message_record.grouped_id,
+                                media_type=media_item.media_type,
+                                media_url=media_item.media_url,
+                                media_key=media_item.media_key,
+                                caption=media_item.caption,
+                                telegram_media_id=str(sent_id) if sent_id > 0 else "",
+                                sort_order=media_item.sort_order,
+                            )
+                            await self._message_media_repository.Save(message_media)
+
+                            attempt.status = MessageAttemptStatus.SENT
+                            attempt.telegram_message_id_value = sent_id if sent_id > 0 else None
+                            attempt.error_message = None
+                        except Exception as exc:
+                            failure_error = str(exc)
+                            attempt.status = MessageAttemptStatus.FAILED
+                            attempt.telegram_message_id_value = None
+                            attempt.error_message = failure_error
+
+                        attempt.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                        finished = attempt.finished_at
+                        started = attempt.started_at or finished
+                        if finished and started:
+                            attempt.duration_ms = int((finished - started).total_seconds() * 1000)
+                        if failure_error:
+                            break
+                else:
+                    attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id or 0), attempt_no=1)
+                    try:
+                        sent_result = await self._telegram_adapter.SendMessage(
+                            account_id=int(account.id or 0),
+                            session_string=account.session_string or "",
+                            target_identifier=target_identifier,
+                            content=send_text,
+                            reply_to_message_id=reply_to_message_id,
+                            proxy=proxy_dict,
+                            telegram_api_id=api_id,
+                            telegram_api_hash=api_hash,
+                        )
+                        sent_id = int(sent_result.get("message_id") or 0)
+                        if sent_id > 0:
+                            sent_ids.append(sent_id)
+                        if (g_id := sent_result.get("grouped_id")) is not None:
+                            message_record.grouped_id = int(g_id)
+                        message_record.peer_type = self._normalize_peer_type(sent_result.get("peer_type"))
+                        message_record.peer_id = (
+                            int(p_id)
+                            if (p_id := sent_result.get("peer_id")) is not None
+                            else message_record.peer_id
+                        )
+                        message_record.reply_to_telegram_message_id = (
+                            int(r_id)
+                            if (r_id := sent_result.get("reply_to_message_id")) is not None
+                            else message_record.reply_to_telegram_message_id
+                        )
+                        message_record.sender_telegram_user_id = (
+                            int(s_id)
+                            if (s_id := sent_result.get("sender_id")) is not None
+                            else message_record.sender_telegram_user_id
+                        )
+                        attempt.status = MessageAttemptStatus.SENT
+                        attempt.telegram_message_id_value = sent_id if sent_id > 0 else None
+                        attempt.error_message = None
+                    except Exception as exc:
+                        failure_error = str(exc)
+                        attempt.status = MessageAttemptStatus.FAILED
+                        attempt.telegram_message_id_value = None
+                        attempt.error_message = failure_error
+
+                    attempt.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                    finished = attempt.finished_at
+                    started = attempt.started_at or finished
+                    if finished and started:
+                        attempt.duration_ms = int((finished - started).total_seconds() * 1000)
+            finally:
+                self._last_sent_times[int(account.id)] = asyncio.get_event_loop().time()
 
         if failure_error:
             message_record.status = MessageSendStatus.FAILED

@@ -87,10 +87,10 @@ class TaskService:
         }
         print(json.dumps(payload, ensure_ascii=False))
 
-    def _belongs_to_current_shard(self, task_id: int) -> bool:
+    def _belongs_to_current_shard(self, stable_id: int) -> bool:
         total_shards = max(1, int(self._settings.pool_total_shards))
         shard_index = int(self._settings.pool_shard_index)
-        return task_id % total_shards == shard_index
+        return stable_id % total_shards == shard_index
 
     @staticmethod
     def _clean_optional_text(value: str | None) -> str | None:
@@ -248,7 +248,7 @@ class TaskService:
         await self._scheduled_task_repository.Save(task)
         await self._session.commit()
 
-        assigned_to_current_pool = self._belongs_to_current_shard(int(task.id))
+        assigned_to_current_pool = self._belongs_to_current_shard(int(task.account_id))
         if assigned_to_current_pool:
             self._scheduler.AddOrReplaceCronJob(
                 job_id=self._build_scheduled_job_id(int(task.id)),
@@ -296,7 +296,7 @@ class TaskService:
         except (ValueError, TypeError, json.JSONDecodeError):
             interval_seconds = 30
 
-        assigned_to_current_pool = self._belongs_to_current_shard(int(task.id))
+        assigned_to_current_pool = self._belongs_to_current_shard(int(task.account_id))
         if assigned_to_current_pool:
             self._scheduler.AddOrReplaceIntervalJob(
                 job_id=self._build_rule_job_id(int(task.id)),
@@ -372,7 +372,7 @@ class TaskService:
             task.message_ids = payload.get("message_ids")
         await self._session.commit()
 
-        if task.is_active and self._belongs_to_current_shard(int(task.id)):
+        if task.is_active and self._belongs_to_current_shard(int(task.account_id)):
             self._scheduler.AddOrReplaceCronJob(
                 job_id=self._build_scheduled_job_id(int(task.id)),
                 cron_expr=task.cron_expr,
@@ -391,7 +391,7 @@ class TaskService:
         await self._session.commit()
 
         job_id = self._build_scheduled_job_id(int(task.id))
-        if is_active and self._belongs_to_current_shard(int(task.id)):
+        if is_active and self._belongs_to_current_shard(int(task.account_id)):
             self._scheduler.AddOrReplaceCronJob(
                 job_id=job_id,
                 cron_expr=task.cron_expr,
@@ -409,10 +409,15 @@ class TaskService:
 
     async def ReloadActiveTasksToScheduler(self) -> None:
         """应用启动后重载激活任务。"""
+        # 清理已有的定时与规则任务，避免动态调整分片时发生残留冲突
+        for job_id in self._scheduler.GetJobIds():
+            if job_id.startswith("task:scheduled:") or job_id.startswith("task:rule:"):
+                self._scheduler.RemoveJob(job_id)
+
         scheduled_tasks = await self._scheduled_task_repository.FindAllByIsActive(True)
         loaded_scheduled = 0
         for task in scheduled_tasks:
-            if not self._belongs_to_current_shard(int(task.id)):
+            if not self._belongs_to_current_shard(int(task.account_id)):
                 continue
             self._scheduler.AddOrReplaceCronJob(
                 job_id=self._build_scheduled_job_id(int(task.id)),
@@ -425,7 +430,7 @@ class TaskService:
         rule_tasks = await self._rule_task_repository.FindAllByIsActive(True)
         loaded_rule = 0
         for task in rule_tasks:
-            if not self._belongs_to_current_shard(int(task.id)):
+            if not self._belongs_to_current_shard(int(task.account_id)):
                 continue
             interval_seconds = 30
             try:
@@ -449,14 +454,6 @@ class TaskService:
 
     async def ExecuteScheduledTaskById(self, task_id: int) -> None:
         """执行单个定时任务。"""
-        if not self._belongs_to_current_shard(task_id):
-            self._log_task_event(
-                "task_skip_shard",
-                task_type="scheduled",
-                task_id=task_id,
-            )
-            return
-
         async with self._session_factory() as session:
             scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
             account_repository = SqlAlchemyTelegramAccountRepository(session)
@@ -480,6 +477,14 @@ class TaskService:
 
             task = await scheduled_task_repository.FindById(task_id)
             if task is None or not task.is_active:
+                return
+
+            if not self._belongs_to_current_shard(int(task.account_id)):
+                self._log_task_event(
+                    "task_skip_shard",
+                    task_type="scheduled",
+                    task_id=task_id,
+                )
                 return
 
             message_content_id = task.message_content_id
@@ -537,14 +542,6 @@ class TaskService:
 
         约定：action_json 至少包含 target_identifier 与 content 字段。
         """
-        if not self._belongs_to_current_shard(task_id):
-            self._log_task_event(
-                "task_skip_shard",
-                task_type="rule",
-                task_id=task_id,
-            )
-            return
-
         async with self._session_factory() as session:
             rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
             account_repository = SqlAlchemyTelegramAccountRepository(session)
@@ -568,6 +565,14 @@ class TaskService:
 
             task = await rule_task_repository.FindById(task_id)
             if task is None or not task.is_active:
+                return
+
+            if not self._belongs_to_current_shard(int(task.account_id)):
+                self._log_task_event(
+                    "task_skip_shard",
+                    task_type="rule",
+                    task_id=task_id,
+                )
                 return
 
             try:

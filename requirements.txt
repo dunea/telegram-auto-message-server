@@ -8,6 +8,7 @@ aiosqlite==0.22.1
 pydantic==2.11.7
 pydantic-settings==2.10.1
 telethon==1.40.0
+PySocks==1.7.1
 aioboto3==15.5.0  # 替代 boto3，全链路 async
 python-dotenv==1.1.1
 APScheduler==3.10.4

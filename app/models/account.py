@@ -1,4 +1,5 @@
-from sqlalchemy import BigInteger, Boolean, Integer, String
+from datetime import datetime
+from sqlalchemy import BigInteger, Boolean, Integer, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -37,6 +38,12 @@ class TelegramAccount(Base, TimestampMixin):
     proxy_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="关联代理 ID"
     )
+    api_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None, comment="账号自定义 Telegram API ID"
+    )
+    api_hash: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None, comment="账号自定义 Telegram API Hash"
+    )
 
 
 class ProxyInfo(Base, TimestampMixin):
@@ -57,7 +64,23 @@ class ProxyInfo(Base, TimestampMixin):
     password: Mapped[str | None] = mapped_column(
         String(128), nullable=True, default=None, comment="代理认证密码"
     )
+    proxy_type: Mapped[str] = mapped_column(
+        String(50), default="socks5", server_default="socks5", nullable=False, comment="代理协议类型（socks5, socks4, http）"
+    )
     # 禁用后该代理不再分配给账号使用。
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False, comment="代理启用状态"
+    )
+
+
+class InstanceHeartbeat(Base):
+    """号池实例心跳表，用于多实例动态自适应分片。"""
+
+    __tablename__ = "instance_heartbeat"
+
+    instance_id: Mapped[str] = mapped_column(
+        String(255), primary_key=True, comment="实例 ID"
+    )
+    last_heartbeat: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, comment="最后一次心跳时间"
     )

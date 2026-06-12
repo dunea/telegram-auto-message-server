@@ -109,7 +109,10 @@ def create_api_application(settings: Settings) -> FastAPI:
         scheduler = get_task_scheduler()
         await scheduler.Start()
         try:
-            await _reload_active_tasks_to_scheduler(settings)
+            if settings.api_scheduler_enabled:
+                await _reload_active_tasks_to_scheduler(settings)
+            else:
+                logger.info("API 模式消息任务调度器已禁用（集群部署模式）")
             _register_file_cleanup_job(settings)
             yield
         finally:
