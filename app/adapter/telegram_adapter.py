@@ -311,14 +311,26 @@ class TelegramAdapter:
         content: str,
         media_url: str | None = None,
         media_caption: str | None = None,
+        reply_to_message_id: int | None = None,
     ) -> dict[str, Any]:
         client = await self.EnsureConnected(account_id=account_id, session_string=session_string)
         if media_url:
             sent_message = await self._call_with_timeout(
-                client.send_file(target_identifier, media_url, caption=media_caption or content or "")
+                client.send_file(
+                    target_identifier,
+                    media_url,
+                    caption=media_caption or content or "",
+                    reply_to=reply_to_message_id,
+                )
             )
         else:
-            sent_message = await self._call_with_timeout(client.send_message(target_identifier, content))
+            sent_message = await self._call_with_timeout(
+                client.send_message(
+                    target_identifier,
+                    content,
+                    reply_to=reply_to_message_id,
+                )
+            )
 
         sent_date = getattr(sent_message, "date", None)
         peer_type, peer_id = self._extract_peer(getattr(sent_message, "peer_id", None))

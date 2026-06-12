@@ -1,3 +1,5 @@
+import asyncio
+import random
 from datetime import datetime, timezone
 from typing import Any
 
@@ -555,6 +557,7 @@ class TelegramService:
         source_type: MessageSourceType | str = MessageSourceType.MANUAL,
         message_content_id: int | None = None,
         task_execution_log_id: int | None = None,
+        reply_to_message_id: int | None = None,
     ) -> dict[str, Any]:
         account = await self._get_account_or_raise(account_id)
         conversation_id: int | None = int(target_identifier) if target_identifier.isdigit() else None
@@ -594,7 +597,7 @@ class TelegramService:
             emoji=message_content.emoji,
             status=MessageSendStatus.PENDING,
             telegram_message_id=None,
-            reply_to_telegram_message_id=None,
+            reply_to_telegram_message_id=reply_to_message_id,
             forward_from_telegram_user_id=None,
             source_message_id=None,
             task_execution_log_id=task_execution_log_id,
@@ -623,6 +626,8 @@ class TelegramService:
 
         if send_media_items:
             for index, media_item in enumerate(send_media_items, start=1):
+                if index > 1:
+                    await asyncio.sleep(random.uniform(1.0, 2.0))
                 attempt = await self._create_send_attempt(telegram_message_id=int(message_record.id), attempt_no=index)
                 try:
                     sent_result = await self._telegram_adapter.SendMessage(
@@ -632,6 +637,7 @@ class TelegramService:
                         content=send_text,
                         media_url=media_item.media_url or media_item.media_key,
                         media_caption=media_item.caption or message_content.caption,
+                        reply_to_message_id=reply_to_message_id,
                     )
                     sent_id = int(sent_result.get("message_id") or 0)
                     if sent_id > 0:
@@ -692,6 +698,7 @@ class TelegramService:
                     session_string=account.session_string or "",
                     target_identifier=target_identifier,
                     content=send_text,
+                    reply_to_message_id=reply_to_message_id,
                 )
                 sent_id = int(sent_result.get("message_id") or 0)
                 if sent_id > 0:

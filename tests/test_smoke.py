@@ -44,3 +44,32 @@ def test_classify_error_message_timeout() -> None:
 
 def test_classify_error_message_unknown() -> None:
     assert classify_error_message("something strange happened") == ErrorClass.UNKNOWN
+
+
+def test_classify_exception_banned_is_non_retryable() -> None:
+    error_class, retryable, is_timeout = classify_exception(Exception("UserDeactivatedBannedError: The user has been deactivated"))
+    assert error_class == ErrorClass.AUTH
+    assert retryable is False
+    assert is_timeout is False
+
+
+def test_classify_exception_unregistered_is_non_retryable() -> None:
+    error_class, retryable, is_timeout = classify_exception(Exception("AuthKeyUnregisteredError: The key is not registered"))
+    assert error_class == ErrorClass.AUTH
+    assert retryable is False
+    assert is_timeout is False
+
+
+def test_classify_exception_blocked_is_non_retryable() -> None:
+    error_class, retryable, is_timeout = classify_exception(Exception("UserBlockedError: User blocked the bot"))
+    assert error_class == ErrorClass.AUTH
+    assert retryable is False
+    assert is_timeout is False
+
+
+def test_classify_exception_flood_is_non_retryable() -> None:
+    error_class, retryable, is_timeout = classify_exception(Exception("FloodWaitError: A wait of 300 seconds is required"))
+    assert error_class == ErrorClass.UNKNOWN
+    assert retryable is False
+    assert is_timeout is False
+

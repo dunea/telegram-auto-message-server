@@ -107,6 +107,7 @@ async def test_pool_runner_auto_reply_flow() -> None:
             session_string="fake_session",
             target_identifier="22222",
             content="world",
+            reply_to_message_id=None,
         )
 
         # 验证接收到的消息与自动发送的回复是否都在数据库成功归档

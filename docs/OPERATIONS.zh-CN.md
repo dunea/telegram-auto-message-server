@@ -143,8 +143,8 @@ readiness 辅助判读：
 
 - `timeout`：可重试，优先排查网络/代理与超时参数。
 - `network`：可重试，优先排查 DNS、连接稳定性与出口质量。
-- `auth`：不可重试，优先人工修复账号会话和鉴权信息。
-- `unknown`：默认可重试，保留原始错误并补充 `app/common/error_classifier.py` 规则。
+- `auth`：不可重试，包括会话失效、账号被封禁销毁（deactivated/unregistered）、被拉黑（blocked）、Peer ID无效（peer_id/peer id）。优先人工修复账号会话和鉴权信息。
+- `unknown`：默认可重试。注：限频限制错误（flood/wait/spam）会判断为不可重试以防频繁调用加剧封禁；其它未知错误需先看原始错误并补充 `app/common/error_classifier.py` 规则。
 
 ## 6. 扩容操作流程
 

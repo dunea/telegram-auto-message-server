@@ -22,8 +22,17 @@ def classify_exception(exc: Exception) -> tuple[ErrorClass, bool, bool]:
         "api_hash",
         "session",
         "phone_code_invalid",
+        "deactivated",
+        "unregistered",
+        "expired",
+        "revoked",
+        "blocked",
+        "peer_id",
+        "peer id",
+        "input peer",
     )
     network_keywords = ("network", "connection", "reset", "dns")
+    flood_keywords = ("flood", "wait", "spam")
 
     if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or any(k in error_text for k in timeout_keywords):
         return ErrorClass.TIMEOUT, True, True
@@ -31,6 +40,8 @@ def classify_exception(exc: Exception) -> tuple[ErrorClass, bool, bool]:
         return ErrorClass.AUTH, False, False
     if any(k in error_text for k in network_keywords):
         return ErrorClass.NETWORK, True, False
+    if any(k in error_text for k in flood_keywords):
+        return ErrorClass.UNKNOWN, False, False
     return ErrorClass.UNKNOWN, True, False
 
 
@@ -51,6 +62,14 @@ def classify_error_message(error_message: str | None) -> ErrorClass:
         or "api_hash" in normalized
         or "session" in normalized
         or "phone_code_invalid" in normalized
+        or "deactivated" in normalized
+        or "unregistered" in normalized
+        or "expired" in normalized
+        or "revoked" in normalized
+        or "blocked" in normalized
+        or "peer_id" in normalized
+        or "peer id" in normalized
+        or "input peer" in normalized
     ):
         return ErrorClass.AUTH
     if (
@@ -61,3 +80,4 @@ def classify_error_message(error_message: str | None) -> ErrorClass:
     ):
         return ErrorClass.NETWORK
     return ErrorClass.UNKNOWN
+
