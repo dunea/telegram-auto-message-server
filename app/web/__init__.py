@@ -31,6 +31,37 @@ templates.env.globals.update({
 # 集中注册所有模板共享的 filters，避免各路由文件重复定义 templates 实例。
 templates.env.filters["basename"] = lambda path: os.path.basename(path) if path else ""
 
+# 自动解析 Cookie 并注入模板上下文的包装器
+_original_template_response = templates.TemplateResponse
+
+def custom_template_response(request, name: str, context: dict = None, *args, **kwargs):
+    if context is None:
+        context = {}
+    if "request" not in context:
+        context["request"] = request
+
+    token = request.cookies.get("web_token")
+    if token:
+        try:
+            import jwt
+            from app.config import get_settings
+            settings = get_settings()
+            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+            email = payload.get("email")
+            user_id = payload.get("sub")
+            if email and user_id:
+                class SimpleUser:
+                    def __init__(self, uid, email):
+                        self.id = uid
+                        self.email = email
+                context["current_user"] = SimpleUser(int(user_id), email)
+                context["user_id"] = int(user_id)
+        except Exception:
+            pass
+    return _original_template_response(request, name, context, *args, **kwargs)
+
+templates.TemplateResponse = custom_template_response
+
 
 def register_web_routes(app):
     from app.web.routes.auth import router as auth_router
@@ -40,6 +71,7 @@ def register_web_routes(app):
     from app.web.routes.scheduled import router as scheduled_router
     from app.web.routes.messages import router as messages_router
     from app.web.routes.files import router as files_router
+    from app.web.routes.profile import router as profile_router
 
     @app.get("/")
     async def root():
@@ -52,3 +84,4 @@ def register_web_routes(app):
     app.include_router(scheduled_router)
     app.include_router(messages_router)
     app.include_router(files_router)
+    app.include_router(profile_router)

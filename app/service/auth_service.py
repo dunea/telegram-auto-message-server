@@ -149,3 +149,44 @@ class AuthService:
 
     async def GetCurrentUserByToken(self, token: str) -> User:
         return await self._get_user_by_token(token=token, expected_type="access")
+
+    async def UpdateUserEmail(self, user_id: int, new_email: str) -> dict:
+        normalized_email = self._normalize_email(new_email)
+        if _EMAIL_PATTERN.match(normalized_email) is None:
+            raise ValueError("邮箱格式不合法")
+
+        user = await self._user_repository.FindById(user_id)
+        if user is None:
+            raise ValueError("用户不存在")
+
+        if user.email == normalized_email:
+            access_token, expires_in_seconds = self._build_access_token(user)
+            return {"access_token": access_token, "expires_in_seconds": expires_in_seconds}
+
+        if await self._user_repository.ExistsByEmail(normalized_email):
+            raise ValueError("该邮箱已被其他用户使用")
+
+        user.email = normalized_email
+        await self._user_repository.Save(user)
+        await self._session.commit()
+
+        access_token, expires_in_seconds = self._build_access_token(user)
+        return {"access_token": access_token, "expires_in_seconds": expires_in_seconds}
+
+    async def UpdateUserPassword(self, user_id: int, old_password: str, new_password: str) -> dict:
+        if len(new_password) < 6 or len(new_password) > 128:
+            raise ValueError("新密码长度需在 6-128 位之间")
+
+        user = await self._user_repository.FindById(user_id)
+        if user is None:
+            raise ValueError("用户不存在")
+
+        if not _PASSWORD_CONTEXT.verify(old_password, user.password_hash):
+            raise ValueError("原密码不正确")
+
+        user.password_hash = _PASSWORD_CONTEXT.hash(new_password)
+        await self._user_repository.Save(user)
+        await self._session.commit()
+
+        access_token, expires_in_seconds = self._build_access_token(user)
+        return {"access_token": access_token, "expires_in_seconds": expires_in_seconds}

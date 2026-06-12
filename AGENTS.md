@@ -60,6 +60,13 @@
 - `tests/e2e/conftest.py` 自带 SQLite 适配（`BigInteger` 编译为 `INTEGER`）并独立起 `127.0.0.1:8099` 的 uvicorn。生产 MySQL 不会用到这个 conftest。
 - 现有测试是单元/集成为主，e2e 仅覆盖 `/api/v1/users` 鉴权流程（`tests/e2e/test_auth.py`）。
 
+## 语言与注释规范
+
+- **AI 交互语言**：所有 AI 回复、原理解释、TODO 项、确认问题均必须使用**简体中文**。
+- **语言切换约束**：除非用户在当前对话中明确要求，否则不得自动切换为英文或其他语言。
+- **标识符与注释**：代码标识符保持英文，代码注释必须使用中文。
+- **Git 提交规范**：Git 的提交信息（Commit Message）必须使用简体中文进行描述。
+
 ## 排障参考
 
 - 架构与分层：`docs/ARCHITECTURE.zh-CN.md`

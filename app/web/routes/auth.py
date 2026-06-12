@@ -45,7 +45,12 @@ async def login(
         result = await auth_service.LoginUser(email=email, password=password)
         token = result["access_token"]
         response = RedirectResponse(url="/web/dashboard", status_code=303)
-        response.set_cookie("web_token", token, httponly=True)
+        response.set_cookie(
+            "web_token",
+            token,
+            httponly=True,
+            max_age=int(result["expires_in_seconds"]),
+        )
         return response
     except Exception as e:
         return templates.TemplateResponse(

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}个人资料 - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">个人资料</h1>
+        <p class="mt-2 text-sm text-gray-500">管理您的账户信息、安全设置以及 API 密钥。</p>
+    </div>
+
+    <!-- Alert Messages -->
+    {% if email_success %}
+    <div class="mb-6 p-4 rounded-md bg-green-50 border border-green-200 flex items-start gap-3 animate-fade-in">
+        <svg class="h-5 w-5 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+            <p class="text-sm font-medium text-green-800">邮箱修改成功！</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if password_success %}
+    <div class="mb-6 p-4 rounded-md bg-green-50 border border-green-200 flex items-start gap-3 animate-fade-in">
+        <svg class="h-5 w-5 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+            <p class="text-sm font-medium text-green-800">密码修改成功！</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 p-4 rounded-md bg-red-50 border border-red-200 flex items-start gap-3 animate-fade-in">
+        <svg class="h-5 w-5 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+            <p class="text-sm font-medium text-red-800">{{ error }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Left Column: User Info Card -->
+        <div class="md:col-span-1 space-y-6">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition hover:shadow-md duration-200">
+                <div class="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                            {{ user.email[0].upper() if user.email else 'U' }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-lg font-bold text-gray-800 truncate" title="{{ user.email }}">{{ user.email }}</h2>
+                            <p class="text-xs text-indigo-600 font-semibold tracking-wider uppercase mt-0.5">管理员用户</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <span class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">用户 ID</span>
+                        <span class="text-sm font-bold text-gray-900 mt-1 block">{{ user.id }}</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">API 密钥 (API Key)</span>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="password" id="apiKey" value="{{ user.api_key }}" readonly class="bg-gray-50 border border-gray-200 text-gray-600 text-xs rounded-md block w-full p-2 select-all focus:outline-none" />
+                            <button onclick="toggleApiKey()" type="button" class="p-2 text-gray-500 hover:text-indigo-600 bg-gray-100 hover:bg-gray-200 rounded-md transition duration-150" title="显示/隐藏">
+                                <svg class="w-4 h-4" id="eyeIcon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            </button>
+                            <button onclick="copyApiKey()" type="button" class="p-2 text-gray-500 hover:text-indigo-600 bg-gray-100 hover:bg-gray-200 rounded-md transition duration-150" title="复制">
+                                <svg class="w-4 h-4" id="copyIcon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Update Info Forms -->
+        <div class="md:col-span-2 space-y-8">
+            <!-- Form 1: Change Email -->
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-gray-100 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    修改邮箱地址
+                </h3>
+                <form action="/web/profile/email" method="POST" class="space-y-4">
+                    <div>
+                        <label for="new_email" class="block text-sm font-medium text-gray-700">新邮箱地址</label>
+                        <input type="email" name="new_email" id="new_email" required value="{{ user.email }}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">
+                            保存修改
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Form 2: Change Password -->
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-gray-100 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    修改登录密码
+                </h3>
+                <form action="/web/profile/password" method="POST" onsubmit="return validatePasswordForm(this)" class="space-y-4">
+                    <div>
+                        <label for="old_password" class="block text-sm font-medium text-gray-700">原密码</label>
+                        <input type="password" name="old_password" id="old_password" required minlength="6" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    </div>
+                    <div>
+                        <label for="new_password" class="block text-sm font-medium text-gray-700">新密码 (6-128位)</label>
+                        <input type="password" name="new_password" id="new_password" required minlength="6" maxlength="128" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    </div>
+                    <div>
+                        <label for="confirm_password" class="block text-sm font-medium text-gray-700">确认新密码</label>
+                        <input type="password" id="confirm_password" required minlength="6" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                        <span id="password_match_error" class="hidden text-xs text-red-500 mt-1 block">新密码与确认密码不匹配</span>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">
+                            修改密码
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleApiKey() {
+        const input = document.getElementById('apiKey');
+        const eyeIcon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeIcon.innerHTML = `
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.024 10.024 0 014.168-5.328m8.32 4.168L12 14.75" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.88 9.88a3 3 0 104.24 4.24M10.73 5.08A10.43 10.43 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.4m-9.72-2l-.75-.75" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" />
+            `;
+        } else {
+            input.type = 'password';
+            eyeIcon.innerHTML = `
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            `;
+        }
+    }
+
+    function copyApiKey() {
+        const input = document.getElementById('apiKey');
+        const copyIcon = document.getElementById('copyIcon');
+        
+        navigator.clipboard.writeText(input.value).then(() => {
+            // Success feedback
+            const originalHTML = copyIcon.innerHTML;
+            copyIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />`;
+            copyIcon.classList.add('text-green-500');
+            
+            setTimeout(() => {
+                copyIcon.innerHTML = originalHTML;
+                copyIcon.classList.remove('text-green-500');
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
+
+    function validatePasswordForm(form) {
+        const newPassword = form.new_password.value;
+        const confirmPassword = document.getElementById('confirm_password').value;
+        const errorMsg = document.getElementById('password_match_error');
+
+        if (newPassword !== confirmPassword) {
+            errorMsg.classList.remove('hidden');
+            return false;
+        }
+        errorMsg.classList.add('hidden');
+        return true;
+    }
+</script>
+{% endblock %}
