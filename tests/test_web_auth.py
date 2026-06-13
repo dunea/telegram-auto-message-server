@@ -130,3 +130,37 @@ def test_logout() -> None:
     assert resp.headers["location"] == "/web/login"
     # Cookie should be deleted/expired (either absent or empty/expired)
     assert "web_token" not in resp.cookies or resp.cookies["web_token"] == ""
+
+
+def test_try_now_rate_limit() -> None:
+    client = _build_web_client()
+    
+    from app.common.rate_limiter import rate_limiter
+    rate_limiter._history.clear()
+    
+    # 第一次请求
+    resp = client.post("/web/auth/try-now", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/web/dashboard"
+    
+    # 第二次请求
+    resp = client.post("/web/auth/try-now", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/web/dashboard"
+    
+    # 第三次请求
+    resp = client.post("/web/auth/try-now", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/web/dashboard"
+    
+    # 第四次请求，应当被限速重定向回首页，不再通过 URL 传递长字符串信息，而是通过临时 cookie (flash_error)
+    resp = client.post("/web/auth/try-now", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    
+    # 验证是否包含 flash_error cookie，且解密内容包含限速文案
+    assert "flash_error" in resp.cookies
+    import urllib.parse
+    flash_err_val = urllib.parse.unquote(resp.cookies["flash_error"])
+    assert "免注册体验过于频繁" in flash_err_val
+

@@ -75,16 +75,41 @@ def clean_db():
     Base.metadata.create_all(bind=engine)
 
 
-def test_root_redirects_to_dashboard() -> None:
-    """测试访问 / 重定向到 /web/dashboard。"""
+def test_root_renders_landing_page_unauthenticated() -> None:
+    """测试未登录用户访问 / 时渲染介绍首页 (200 OK)。"""
     app = FastAPI()
     register_web_routes(app)
 
     client = TestClient(app)
     resp = client.get("/", follow_redirects=False)
 
+    assert resp.status_code == 200
+    assert "免注册登录" in resp.text
+
+
+
+def test_root_redirects_to_dashboard_authenticated() -> None:
+    """测试已登录用户访问 / 时自动重定向到 /web/dashboard (303)。"""
+    import jwt
+    from app.config import get_settings
+    
+    app = FastAPI()
+    register_web_routes(app)
+
+    settings = get_settings()
+    token = jwt.encode(
+        {"sub": "1", "email": "test@test.com", "type": "access"},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm
+    )
+
+    client = TestClient(app)
+    client.cookies.set("web_token", token)
+    resp = client.get("/", follow_redirects=False)
+
     assert resp.status_code == 303
     assert resp.headers["location"] == "/web/dashboard"
+
 
 
 def test_dashboard_unauthenticated() -> None:

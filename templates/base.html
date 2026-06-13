@@ -85,8 +85,17 @@
                     </div>
                     {% else %}
                     <div class="flex items-center gap-4">
+                        {% if request.url.path in ['/web/login', '/web/register'] %}
+                        <a href="/" class="text-gray-500 hover:text-indigo-600 text-sm font-medium flex items-center gap-1 transition duration-150">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            返回首页
+                        </a>
+                        {% else %}
                         <a href="/web/login" class="text-gray-500 hover:text-gray-700 text-sm font-medium">登录</a>
                         <a href="/web/register" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">注册</a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -145,21 +154,59 @@
             </div>
             {% else %}
             <div class="px-2 pt-2 pb-3 space-y-1">
+                {% if request.url.path in ['/web/login', '/web/register'] %}
+                <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700">← 返回首页</a>
+                {% else %}
                 <a href="/web/login" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700">登录</a>
                 <a href="/web/register" class="block px-3 py-2 rounded-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 text-center">注册</a>
+                {% endif %}
             </div>
             {% endif %}
         </div>
     </nav>
 
+    {% if current_user and current_user.email and current_user.email.endswith('@test.com') %}
+    <div class="bg-gradient-to-r from-red-500 to-pink-600 text-white py-2 px-4 shadow-md transition duration-150">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left text-sm font-medium">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 animate-pulse text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>您当前处于<strong>演示体验模式（试用账号）</strong>，无法执行导入账号、上传文件及修改规则等写入操作。</span>
+            </div>
+            <a href="/web/profile" class="bg-white text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-50 transition duration-150 shadow-sm flex items-center gap-1">
+                立即修改邮箱解锁全部功能 &rarr;
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Main Content Area -->
     <main class="flex-grow">
         {% block body %}
             <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                {% set err_msg = error or request.query_params.get('error') %}
+                {% if err_msg %}
+                <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-md shadow-sm">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-red-700 font-medium">
+                                {{ err_msg }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
                 {% block content %}{% endblock %}
             </div>
         {% endblock %}
     </main>
+
 
     <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 py-4 mt-auto">

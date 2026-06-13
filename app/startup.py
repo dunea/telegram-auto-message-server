@@ -37,6 +37,63 @@ logger = logging.getLogger(__name__)
 
 def register_global_exception_handlers(app: FastAPI) -> None:
     """注册全局异常处理器。"""
+    from app.common.exceptions import DemoRestrictionError
+
+    @app.exception_handler(DemoRestrictionError)
+    async def _handle_demo_restriction(request: Request, exc: DemoRestrictionError):
+        from fastapi.responses import HTMLResponse, RedirectResponse
+        from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+        
+        error_msg = exc.message
+        path = request.url.path
+        
+        if path.startswith("/api/"):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": error_msg}
+            )
+        
+        if "HX-Request" in request.headers:
+            return HTMLResponse(
+                content=f"""
+                <div class="bg-red-50 border-l-4 border-red-400 p-4 my-2 text-red-700 text-sm rounded-md shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <svg class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span class="font-medium">{error_msg}</span>
+                    </div>
+                </div>
+                """,
+                status_code=200
+            )
+            
+        referer = request.headers.get("referer")
+        if referer:
+            parsed = urlparse(referer)
+            query_params = dict(parse_qsl(parsed.query))
+            query_params["error"] = error_msg
+            new_query = urlencode(query_params)
+            new_url = urlunparse((
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                new_query,
+                parsed.fragment
+            ))
+            return RedirectResponse(url=new_url, status_code=303)
+            
+        return HTMLResponse(
+            content=f"""
+            <div style="padding: 20px; font-family: sans-serif; color: #b91c1c; background: #fef2f2; border: 1px solid #fee2e2; border-radius: 6px; max-width: 500px; margin: 40px auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                <h3 style="margin-top:0; color: #991b1b;">限制操作</h3>
+                <p>{error_msg}</p>
+                <p><a href="/web/profile" style="color: #4f46e5; text-decoration: underline; font-weight: bold;">前往个人中心修改邮箱 &rarr;</a></p>
+            </div>
+            """,
+            status_code=403
+        )
 
     @app.exception_handler(ValueError)
     async def _handle_value_error(_request: Request, exc: ValueError) -> JSONResponse:
@@ -52,6 +109,7 @@ def register_global_exception_handlers(app: FastAPI) -> None:
             return await http_exception_handler(request, exc)
         logger.exception("Unhandled exception on API request")
         return JSONResponse(status_code=500, content={"detail": "服务器内部错误"})
+
 
 
 async def _sqlite_auto_migrate(settings: Settings) -> None:

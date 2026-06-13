@@ -14,9 +14,10 @@
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 
 from app.adapter.mysql_adapter import build_session_factory
 from app.adapter.s3_adapter import S3Adapter
@@ -180,6 +181,7 @@ def get_s3_adapter() -> S3Adapter:
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer),
     auth_service: AuthService = Depends(get_auth_service),
 ):
@@ -189,8 +191,13 @@ async def get_current_user(
 
     try:
         user = await auth_service.GetCurrentUserByToken(credentials.credentials)
+        if user and user.email and user.email.endswith("@test.com"):
+            if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+                from app.common.exceptions import DemoRestrictionError
+                raise DemoRestrictionError()
         return user
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+

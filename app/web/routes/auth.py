@@ -6,6 +6,8 @@ from app.api.deps import get_auth_service
 from app.config import get_settings
 from app.service.auth_service import AuthService
 from app.web import templates
+from app.common.rate_limiter import rate_limiter
+from app.common.exceptions import RateLimitError
 
 router = APIRouter(prefix="/web", tags=["web-auth"])
 
@@ -90,3 +92,44 @@ async def logout():
     response = RedirectResponse(url="/web/login", status_code=303)
     response.delete_cookie("web_token")
     return response
+
+
+@router.post("/auth/try-now")
+async def try_now(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    import string
+    import random
+    
+    chars = string.ascii_lowercase + string.digits
+    random_str = "".join(random.choices(chars, k=6))
+    email = f"{random_str}@test.com"
+    password = "123456"
+    
+    try:
+        # 获取客户端 IP 并进行免注册登录限速校验
+        client_ip = request.client.host if request.client else "unknown"
+        is_allowed, error_msg = rate_limiter.check_and_record(client_ip)
+        if not is_allowed:
+            raise RateLimitError(error_msg)
+
+        await auth_service.RegisterUser(email=email, password=password)
+        result = await auth_service.LoginUser(email=email, password=password)
+        token = result["access_token"]
+        response = RedirectResponse(url="/web/dashboard", status_code=303)
+        response.set_cookie(
+            "web_token",
+            token,
+            httponly=True,
+            max_age=int(result["expires_in_seconds"]),
+        )
+        return response
+    except RateLimitError as e:
+        import urllib.parse
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie("flash_error", urllib.parse.quote(str(e)), max_age=10)
+        return response
+    except Exception as e:
+        return RedirectResponse(url=f"/web/login?error={str(e)}", status_code=303)
+

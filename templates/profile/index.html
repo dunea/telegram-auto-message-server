@@ -139,7 +139,12 @@
             </h3>
             <form action="/web/profile/password" method="POST" onsubmit="return validatePasswordForm(this)" class="space-y-4">
                 <div>
-                    <label for="old_password" class="block text-sm font-medium text-gray-700">原密码</label>
+                    <label for="old_password" class="block text-sm font-medium text-gray-700 flex justify-between items-center">
+                        <span>原密码</span>
+                        {% if user.email.endswith('@test.com') %}
+                        <span class="text-xs text-indigo-500 font-normal">💡 演示账号默认密码为 123456</span>
+                        {% endif %}
+                    </label>
                     <input type="password" name="old_password" id="old_password" required minlength="6" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
                 </div>
                 <div>

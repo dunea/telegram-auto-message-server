@@ -1,8 +1,9 @@
 import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+
 
 # 前端展示用的站点品牌信息（与 settings.app_name 解耦，不影响 OpenAPI 标题）。
 SITE_NAME = "Telegram 自动消息"
@@ -40,6 +41,15 @@ def custom_template_response(request, name: str, context: dict = None, *args, **
     if "request" not in context:
         context["request"] = request
 
+    # 检测并读取 flash_error 闪存 Cookie
+    flash_error = request.cookies.get("flash_error")
+    if flash_error:
+        try:
+            import urllib.parse
+            context["error"] = urllib.parse.unquote(flash_error)
+        except Exception:
+            pass
+
     token = request.cookies.get("web_token")
     if token:
         try:
@@ -58,7 +68,14 @@ def custom_template_response(request, name: str, context: dict = None, *args, **
                 context["user_id"] = int(user_id)
         except Exception:
             pass
-    return _original_template_response(request, name, context, *args, **kwargs)
+            
+    response = _original_template_response(request, name, context, *args, **kwargs)
+    
+    # 如果读取了闪存消息，则在返回 response 时将其立即销毁
+    if flash_error:
+        response.delete_cookie("flash_error")
+        
+    return response
 
 templates.TemplateResponse = custom_template_response
 
@@ -74,8 +91,12 @@ def register_web_routes(app):
     from app.web.routes.profile import router as profile_router
 
     @app.get("/")
-    async def root():
-        return RedirectResponse(url="/web/dashboard", status_code=303)
+    async def root(request: Request):
+        from app.web.routes.auth import _is_logged_in
+        if _is_logged_in(request):
+            return RedirectResponse(url="/web/dashboard", status_code=303)
+        return templates.TemplateResponse(request, "index.html")
+
 
     app.include_router(auth_router)
     app.include_router(dashboard_router)

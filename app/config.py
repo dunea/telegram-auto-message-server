@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     db_pool_recycle_seconds: int = Field(default=3600, ge=30)
     db_pool_timeout_seconds: int = Field(default=30, ge=1)
 
+    rate_limit_try_now_rules: str = Field(
+        default="60:3,900:5,3600:10,86400:20",
+        description="免注册登录的限速规则，格式为 '秒数:最大次数'，用逗号分隔"
+    )
+
     @model_validator(mode="after")
     def _validate_pool_shard(self) -> "Settings":
         mode = self.mode.strip().lower()
