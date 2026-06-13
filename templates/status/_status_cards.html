@@ -1,0 +1,358 @@
+<div id="status-container" class="space-y-6" hx-get="/web/status/partial" hx-trigger="every 10s" hx-swap="outerHTML">
+    <!-- 状态顶部操作区 -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/90 backdrop-blur-xl p-5 rounded-2xl shadow-sm border border-gray-200/80">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <span class="relative flex h-3 w-3">
+                    {% if status.database.ok and status.scheduler.running %}
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></span>
+                    {% else %}
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></span>
+                    {% endif %}
+                </span>
+                <span class="font-semibold text-gray-800 text-sm tracking-wide">
+                    系统健康状态：
+                    {% if status.database.ok and status.scheduler.running %}
+                    <span class="text-emerald-600 font-bold">运行良好 (HEALTHY)</span>
+                    {% elif not status.database.ok %}
+                    <span class="text-rose-600 font-bold">异常 (DATABASE_DOWN)</span>
+                    {% else %}
+                    <span class="text-amber-600 font-bold">亚健康 (DEGRADED)</span>
+                    {% endif %}
+                </span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">自动轮询已开启（每 10 秒无缝刷新中...）</p>
+        </div>
+        
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <span class="text-xs text-gray-500 whitespace-nowrap bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 font-mono">
+                LATEST REF: {{ status.service.local_time.strftime('%H:%M:%S') }}
+            </span>
+            <button 
+                hx-get="/web/status/partial" 
+                hx-target="#status-container" 
+                hx-swap="outerHTML" 
+                onclick="this.querySelector('.refresh-icon').classList.add('animate-spin')"
+                class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 shadow-xs transition duration-150 focus:outline-none hover:border-indigo-500/40"
+            >
+                <svg class="refresh-icon w-4 h-4 text-gray-500 transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 16H18.2M7 17l-4-4m0 0l4-4m-4 4h18" />
+                </svg>
+                立即同步
+            </button>
+        </div>
+    </div>
+
+    <!-- 三栏核心监控卡片 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 卡片一：服务整体概览与基础服务 -->
+        <div class="bg-white rounded-2xl shadow-xs border border-gray-205/60 p-6 flex flex-col justify-between hover:border-indigo-500/30 hover:shadow-sm transition duration-300 relative group overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-cyan-500 opacity-60"></div>
+            <div>
+                <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                    <h3 class="text-md font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        基础服务信息
+                    </h3>
+                    <span class="text-[10px] font-mono bg-indigo-50 border border-indigo-150 text-indigo-600 px-2 py-0.5 rounded">API-NODE</span>
+                </div>
+                
+                <ul class="mt-4 space-y-3.5 text-sm">
+                    <li class="flex justify-between items-center">
+                        <span class="text-gray-400">服务名称</span>
+                        <span class="text-gray-700 font-medium">{{ status.service.name }}</span>
+                    </li>
+                    <li class="flex justify-between items-center">
+                        <span class="text-gray-400">运行模式</span>
+                        <span class="text-indigo-600 font-semibold font-mono uppercase bg-indigo-50/50 px-2 py-0.5 rounded border border-indigo-100/40">{{ status.service.mode }}</span>
+                    </li>
+                    <li class="flex justify-between items-center">
+                        <span class="text-gray-400">本地时间</span>
+                        <span class="text-gray-700 font-medium font-mono text-xs">{{ status.service.local_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    </li>
+                    <li class="flex justify-between items-center">
+                        <span class="text-gray-400">运行环境时区</span>
+                        <span class="text-gray-700 font-medium font-mono text-xs">UTC+08 (Beijing)</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-gray-100">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                        </svg>
+                        MySQL 数据库
+                    </span>
+                    {% if status.database.ok %}
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> ACTIVE
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded">
+                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> ERROR
+                    </span>
+                    {% endif %}
+                </div>
+                {% if not status.database.ok %}
+                <p class="text-xs text-rose-600 mt-2 font-mono break-all max-h-16 overflow-y-auto bg-rose-50/50 p-2 rounded border border-rose-100">
+                    {{ status.database.error }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 卡片二：多实例与号池分片 -->
+        <div class="bg-white rounded-2xl shadow-xs border border-gray-205/60 p-6 flex flex-col justify-between hover:border-indigo-500/30 hover:shadow-sm transition duration-300 relative group overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-60"></div>
+            <div>
+                <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                    <h3 class="text-md font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        分布式号池与分片
+                    </h3>
+                    <span class="text-[10px] font-mono bg-purple-50 border border-purple-100 text-purple-600 px-2 py-0.5 rounded">
+                        ALIVE: {{ status.pool.alive_count }}
+                    </span>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-400">当前实例 ID</span>
+                        <span class="text-gray-700 font-semibold font-mono text-xs max-w-[150px] truncate" title="{{ status.pool.instance_id }}">{{ status.pool.instance_id }}</span>
+                    </div>
+
+                    <!-- 分片展示区 -->
+                    <div class="bg-gray-50 rounded-xl p-3 border border-gray-200/60 mt-2">
+                        <div class="flex justify-between text-xs font-semibold text-gray-500">
+                            <span>分片槽位分配</span>
+                            <span class="text-indigo-600 font-mono">{{ status.pool.shard_index }} / {{ status.pool.total_shards }}</span>
+                        </div>
+                        
+                        <!-- 分片插图/占比条 -->
+                        {% if status.pool.total_shards > 0 %}
+                        <div class="flex gap-1.5 mt-2.5">
+                            {% for i in range(status.pool.total_shards) %}
+                            <div class="h-3 flex-grow rounded-sm {% if i == status.pool.shard_index %}bg-gradient-to-r from-indigo-500 to-cyan-500 shadow-[0_0_8px_rgba(99,102,241,0.3)] animate-pulse{% else %}bg-gray-200{% endif %}" 
+                                 title="分片 {{ i }} {% if i == status.pool.shard_index %} (当前实例工作槽位) {% endif %}">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <ul class="space-y-2.5 text-sm pt-2">
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-400">号池最大登录并发</span>
+                            <span class="text-gray-700 font-semibold font-mono">{{ status.pool.max_concurrent_logins }} active_logins</span>
+                        </li>
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-400">登录状态巡检间隔</span>
+                            <span class="text-gray-700 font-semibold font-mono">{{ status.pool.login_scan_interval_seconds }}s</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 卡片三：定时任务调度器 (APScheduler) -->
+        <div class="bg-white rounded-2xl shadow-xs border border-gray-205/60 p-6 flex flex-col justify-between hover:border-indigo-500/30 hover:shadow-sm transition duration-300 relative group overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 opacity-60"></div>
+            <div>
+                <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                    <h3 class="text-md font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        任务调度器 (APS)
+                    </h3>
+                    {% if status.scheduler.running %}
+                    <span class="text-[10px] font-mono bg-emerald-50 border border-emerald-150 text-emerald-600 px-2 py-0.5 rounded">
+                        RUNNING
+                    </span>
+                    {% else %}
+                    <span class="text-[10px] font-mono bg-gray-100 text-gray-400 px-2 py-0.5 rounded">
+                        PAUSED
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="mt-4 space-y-3.5">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-400">引擎内核</span>
+                        <span class="text-gray-700 font-medium">APScheduler Background</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-400">当前活跃工作线程 (Jobs)</span>
+                        <span class="text-indigo-600 font-bold font-mono bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
+                            {{ status.scheduler.job_count }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3.5 border-t border-gray-100">
+                    <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block mb-2">已加载作业队列 ID 列表</span>
+                    
+                    {% if status.scheduler.job_ids %}
+                    <div class="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto p-1.5 bg-gray-50 rounded-lg border border-gray-200/60 custom-scrollbar">
+                        {% for jid in status.scheduler.job_ids %}
+                        <span class="text-[10px] font-mono font-medium bg-white text-gray-600 border border-gray-200 px-2 py-0.5 rounded shadow-xs" title="APS Job: {{ jid }}">
+                            {{ jid }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
+                        <p class="text-[10px] text-gray-400">当前无活动的自动群发作业</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 号池集群存活实例列表与系统资源统计 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 存活实例明细表 (占两栏) -->
+        <div class="bg-white rounded-2xl shadow-xs border border-gray-205/60 p-6 lg:col-span-2 hover:border-indigo-500/30 hover:shadow-sm transition duration-300 overflow-hidden">
+            <h3 class="text-md font-bold text-gray-800 flex items-center gap-2 pb-4 border-b border-gray-100">
+                <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                分布式号池集群存活拓扑 (Cluster Live Topology)
+            </h3>
+            
+            {% if status.pool.instances %}
+            <div class="overflow-x-auto mt-4">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-gray-500 font-semibold uppercase tracking-wider bg-gray-50 rounded-lg">
+                            <th class="py-3 px-4 rounded-l-lg border-b border-gray-100">实例 ID</th>
+                            <th class="py-3 px-4 border-b border-gray-100">最后上报心跳 (UTC)</th>
+                            <th class="py-3 px-4 border-b border-gray-100">活体寿命检测</th>
+                            <th class="py-3 px-4 rounded-r-lg border-b border-gray-100 text-right">负载角色</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for inst in status.pool.instances %}
+                        <tr class="hover:bg-gray-50/50 transition duration-150">
+                            <td class="py-3.5 px-4 font-mono text-xs font-semibold text-gray-700 flex items-center gap-2 truncate max-w-[200px]" title="{{ inst.instance_id }}">
+                                <span class="h-2 w-2 rounded-full {% if inst.is_active %}bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]{% else %}bg-gray-300{% endif %}"></span>
+                                {{ inst.instance_id }}
+                            </td>
+                            <td class="py-3.5 px-4 text-gray-500 font-mono text-xs">
+                                {{ inst.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') }}
+                            </td>
+                            <td class="py-3.5 px-4">
+                                {% if inst.is_active %}
+                                <span class="inline-flex items-center text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                                    {{ inst.seconds_ago }}s 前活跃 (Online)
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full" title="心跳已过期，不参与号池分片">
+                                    {{ inst.seconds_ago }}s 前 (Expired)
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3.5 px-4 text-right">
+                                {% if inst.instance_id == status.pool.instance_id %}
+                                <span class="inline-flex items-center gap-1.5 text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-md shadow-xs">
+                                    <span class="relative flex h-1.5 w-1.5">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+                                    </span>
+                                    THIS NODE
+                                </span>
+                                {% else %}
+                                <span class="text-xs text-gray-400 font-mono">CLUSTER STANDBY</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 mt-4">
+                <p class="text-sm text-gray-400">暂无注册的集群实例心跳信息，系统运行于非号池单机模式下。</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 资源概览与 24h 出站成功率卡片 (占一栏) -->
+        <div class="bg-white rounded-2xl shadow-xs border border-gray-205/60 p-6 hover:border-indigo-500/30 hover:shadow-sm transition duration-300 flex flex-col justify-between overflow-hidden">
+            <div>
+                <h3 class="text-md font-bold text-gray-800 flex items-center gap-2 pb-4 border-b border-gray-100">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    托管核心资源概览
+                </h3>
+
+                <div class="mt-4 space-y-4">
+                    <!-- 消息成功率 -->
+                    <div class="bg-indigo-50/40 p-3 rounded-xl border border-indigo-100/60 mb-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-semibold text-gray-500">24h 消息投递成功率</span>
+                            <span class="text-indigo-600 font-bold font-mono text-sm">{{ status.messages.success_rate_24h }}%</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] text-gray-400 font-mono">
+                            <span>TOTAL_24H: {{ status.messages.total_24h }}</span>
+                            <span>SENT_24H: {{ status.messages.sent_24h }}</span>
+                        </div>
+                    </div>
+
+                    <!-- 账号比例 -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-gray-500 mb-1.5 font-mono">
+                            <span>TG ONLINE STATUS</span>
+                            <span class="text-indigo-600">{{ status.accounts.online }} / {{ status.accounts.total }}</span>
+                        </div>
+                        <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden flex">
+                            {% if status.accounts.total > 0 %}
+                            <div class="bg-gradient-to-r from-indigo-500 to-cyan-500 h-full rounded-full transition-all duration-500" style="width: {{ (status.accounts.online / status.accounts.total) * 100 }}%"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 激活账号比例 -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-gray-500 mb-1.5 font-mono">
+                            <span>ACTIVE ACCOUNTS</span>
+                            <span class="text-emerald-600">{{ status.accounts.active }} / {{ status.accounts.total }}</span>
+                        </div>
+                        <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden flex">
+                            {% if status.accounts.total > 0 %}
+                            <div class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-500" style="width: {{ (status.accounts.active / status.accounts.total) * 100 }}%"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 代理启用比例 -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-gray-500 mb-1.5 font-mono">
+                            <span>PROXY TUNNELS</span>
+                            <span class="text-cyan-600">{{ status.proxies.active }} / {{ status.proxies.total }}</span>
+                        </div>
+                        <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden flex">
+                            {% if status.proxies.total > 0 %}
+                            <div class="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full rounded-full transition-all duration-500" style="width: {{ (status.proxies.active / status.proxies.total) * 100 }}%"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-[10px] text-gray-400 text-center font-mono pt-4 border-t border-gray-100">
+                SECURE RUNNING VIA TELETHON ENGINE
+            </div>
+        </div>
+    </div>
+</div>

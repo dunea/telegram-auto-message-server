@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}运行状态与高可用服务拓扑 - {{ site_name }}{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="Telegram 自动消息发送服务实时运行状态监控。提供分布式号池集群实例分片、定时发送调度器、MySQL 数据库连接状态以及 Telegram 多账号在线托管的全局健康度监测。">
+<meta name="keywords" content="Telegram 运行状态, Telegram 自动回复, 分布式号池, 定时消息, 消息群发, APScheduler 调度器, Telethon 状态">
+<style>
+    /* 简约风定制滚动条 */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(241, 245, 249, 0.5);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(99, 102, 241, 0.3);
+        border-radius: 2px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(99, 102, 241, 0.6);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 主背景包裹器：提供 WOW 效果的白色简约微渐变中控面板 -->
+<div class="bg-white text-gray-800 p-6 sm:p-8 rounded-3xl border border-gray-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden animate-fade-in">
+    <!-- 浅色背景渐变柔光 (Light Mode Ambient Glows) -->
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute top-1/2 left-1/3 w-80 h-80 bg-cyan-50/40 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <!-- 头部区域 -->
+    <header class="relative z-10 border-b border-gray-100 pb-6 mb-8 md:flex md:items-center md:justify-between">
+        <div class="flex-1 min-w-0">
+            <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-3">
+                <svg class="w-8 h-8 text-indigo-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                服务运行状态中控台
+            </h1>
+            <p class="mt-2 text-sm text-gray-500">
+                实时追踪后端 API 状态、分布式号池并发分片路由、定时任务调度内核及外部存储的健康度。
+            </p>
+        </div>
+    </header>
+
+    <!-- 实时卡片区域 (HTMX 局部轮询刷新) -->
+    <section class="relative z-10">
+        {% include "status/_status_cards.html" %}
+    </section>
+
+    <!-- 技术架构说明与深度技术文档 (SEO 丰富静态板块) -->
+    <section class="relative z-10 mt-12 pt-8 border-t border-gray-100">
+        <h2 class="text-xl font-bold text-gray-950 mb-6 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h0a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            系统技术架构原理与运行机制
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
+            <!-- 机制一 -->
+            <article class="bg-gradient-to-br from-indigo-50/20 via-white to-indigo-50/10 p-5 rounded-xl border border-gray-200/60 shadow-xs">
+                <h3 class="font-bold text-gray-900 text-base mb-2 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                    1. Telegram 多账号安全托管
+                </h3>
+                <p class="leading-relaxed">
+                    系统基于高并发协程框架 <strong>Telethon</strong> 驱动，以异步非阻塞模式同时维护上百个账号的安全连接。为了防止 Telegram 官方封号，系统支持对每个账号配置独立的网络代理（如 <strong>Socks5</strong>、Socks4 或 HTTP 代理隧道），对每一个连接请求进行底层协议级别的 IP 隔离，模拟自然的用户终端网络特征，提升账号的高可用性与托管寿命。
+                </p>
+            </article>
+
+            <!-- 机制二 -->
+            <article class="bg-gradient-to-br from-indigo-50/20 via-white to-cyan-50/20 p-5 rounded-xl border border-gray-200/60 shadow-xs">
+                <h3 class="font-bold text-gray-900 text-base mb-2 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+                    2. 分布式号池集群自适应分片
+                </h3>
+                <p class="leading-relaxed">
+                    在大规模的自动群发和关键词智能自动回复业务中，单机承载能力是有限的。系统通过数据库的 <strong>InstanceHeartbeat（实例心跳）</strong> 实现多机动态扩容与自适应负载分片机制。各节点启动后，将自身实例 ID 与心跳定时上报。在账号巡检轮次中，实例结合总分片数与当前分片索引，利用哈希取模算法动态切分账号，保证各个 worker 节点的流量均衡，并触发分片漂移防护。
+                </p>
+            </article>
+
+            <!-- 机制三 -->
+            <article class="bg-gradient-to-br from-purple-50/20 via-white to-pink-50/10 p-5 rounded-xl border border-gray-200/60 shadow-xs">
+                <h3 class="font-bold text-gray-900 text-base mb-2 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                    3. APScheduler 高阶定时调度
+                </h3>
+                <p class="leading-relaxed">
+                    定时发送与群发任务通过底层的 <strong>APScheduler（Advanced Python Scheduler）</strong> 调度器驱动。APScheduler 定期扫描数据库中的活动任务，以精确的 Cron 表达式解析下一次执行时间，并将任务封装为后台异步 Job。通过内存队列与线程池进行派发，保证高并发消息推送下的微秒级精确触发，实现极低的网络延迟和高投递成功率。
+                </p>
+            </article>
+        </div>
+    </section>
+
+    <!-- 常见技术排障 FAQ (SEO 丰富静态板块) -->
+    <section class="relative z-10 mt-8 pt-8 border-t border-gray-100">
+        <h2 class="text-xl font-bold text-gray-950 mb-6 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            常见技术排障与系统运行问答 (FAQ)
+        </h2>
+
+        <div class="space-y-4 text-sm text-gray-650">
+            <details class="bg-gray-50/50 border border-gray-200 rounded-xl p-4 group cursor-pointer" open>
+                <summary class="font-semibold text-gray-900 list-none flex justify-between items-center">
+                    <span>Q1: 为什么有账号处于启用状态（Active）却未显示在线（Online）？</span>
+                    <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </summary>
+                <p class="mt-2.5 leading-relaxed text-gray-600 border-t border-gray-150 pt-2.5">
+                    <strong>答：</strong>启用状态（Active）属于业务启用标记，表明该账号被允许参与托管和发送任务。在线状态（Online）则是号池轮询节点实际连接 Telegram 服务的会话状态。若账号刚刚添加，或遇到了 Telegram 凭据失效（Session Expired）、网络代理失效、以及账号被 Telegram 官方临时限制等问题，系统会在巡检失败后将在线状态置为 False，并通过日志归类相应的错误码，自动启动退避重试。
+                </p>
+            </details>
+
+            <details class="bg-gray-50/50 border border-gray-200 rounded-xl p-4 group cursor-pointer">
+                <summary class="font-semibold text-gray-900 list-none flex justify-between items-center">
+                    <span>Q2: 调度器中的定时 Job 是如何实现自动恢复和容错的？</span>
+                    <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </summary>
+                <p class="mt-2.5 leading-relaxed text-gray-600 border-t border-gray-150 pt-2.5">
+                    <strong>答：</strong>APScheduler 在启动时会通过 <code>ReloadActiveTasksToScheduler</code> 方法从 MySQL 数据库中一次性加载所有被启用的定时发送规则，并为它们重新计算下次发送时间。如果在运行期间发生宕机，当服务重新拉起后，调度器会自动计算发生崩溃时的“漏失时间”（Misfire），并根据容错档位参数判定是否需要补发或直接顺延到下一个触发时间，保证营销消息的不重不漏。
+                </p>
+            </details>
+
+            <details class="bg-gray-50/50 border border-gray-200 rounded-xl p-4 group cursor-pointer">
+                <summary class="font-semibold text-gray-900 list-none flex justify-between items-center">
+                    <span>Q3: 号池分片漂移防御机制（Shard Drift Guard）的作用是什么？</span>
+                    <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </summary>
+                <p class="mt-2.5 leading-relaxed text-gray-600 border-t border-gray-150 pt-2.5">
+                    <strong>答：</strong>在大规模部署时，如果节点网络发生闪断、数据库连接超时或容器漂移，可能会导致某台服务器的心跳停止数秒，从而被集群内其他存活实例判定为掉线而重新瓜分其分片账号。若此时原实例重新上线，就容易产生多实例同时托管和轮询同一账号的问题，导致冲突封号。<strong>Shard Drift Guard</strong> 开启后，一旦检测到分配给自己的账号与其他实例的分片范围产生交叉或漂移，会立即主动退出进程，从硬件级别杜绝双写和冲突。
+                </p>
+            </details>
+        </div>
+    </section>
+</div>
+{% endblock %}

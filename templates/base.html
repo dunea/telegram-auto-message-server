@@ -67,6 +67,9 @@
                             文件管理
                         </a>
                         {% else %}
+                        <a href="/web/status" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/status' or request.url.path.startswith('/web/status/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+                            运行状态
+                        </a>
                         <a href="/web/repository" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/repository' or request.url.path.startswith('/web/repository/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             项目仓库
                         </a>
@@ -144,6 +147,9 @@
                     个人资料
                 </a>
                 {% else %}
+                <a href="/web/status" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/status' or request.url.path.startswith('/web/status/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
+                    运行状态
+                </a>
                 <a href="/web/repository" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/repository' or request.url.path.startswith('/web/repository/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     项目仓库
                 </a>
