@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram 多账号托管 & 独立代理 - 安全稳定防风控托管平台 - {{ site_name }}{% endblock %}
+
+{% block content %}
+<!-- 主背景包裹器：提供与运行状态页一致的白色简约中控面板，统一样式与边距，消除不协调感 -->
+<div class="bg-white text-gray-800 p-6 sm:p-8 rounded-3xl border border-gray-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden animate-fade-in">
+    <!-- 浅色背景渐变柔光 (WOW 视觉效果) -->
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <!-- 面包屑导航 -->
+    <nav class="flex mb-8 text-sm text-gray-500 relative z-10" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="/" class="hover:text-indigo-600 transition-colors">首页</a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="text-gray-400">功能特性</span>
+                </div>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="text-gray-700 font-medium">多账号托管 & 独立代理</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- 英雄区 (Hero Section) -->
+    <div class="bg-gradient-to-br from-indigo-900 to-indigo-950 rounded-2xl text-white p-8 sm:p-12 shadow-xl mb-12 relative overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.15),transparent)] pointer-events-none"></div>
+        <div class="max-w-3xl relative z-10">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-semibold mb-4">
+                🛡️ 企业级多号防风控方案
+            </span>
+            <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight mb-6 leading-tight">
+                多账号一站式安全托管<br class="hidden sm:inline">
+                配合独享网络代理，彻底规避关联风控
+            </h1>
+            <p class="text-base sm:text-lg text-indigo-100/80 mb-8 leading-relaxed">
+                无需在多台设备上频繁切换登录。通过我们基于 Python Telethon 协议栈构建的号池管理系统，
+                为每一个托管账号配置专用的 Socks5 或 MTProto 代理。配合精细的分片并发调度，让您的出海营销与私域运营坚若磐石。
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <form action="/web/auth/try-now" method="POST" class="w-full sm:w-auto">
+                    <button type="submit" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-bold rounded-lg text-indigo-950 bg-white hover:bg-indigo-50 shadow-sm transition duration-150 transform hover:scale-[1.01]">
+                        免注册即刻试用
+                    </button>
+                </form>
+                <a href="/web/register" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-indigo-400 text-sm font-bold rounded-lg text-white hover:bg-indigo-800/50 shadow-sm transition duration-150">
+                    创建账号
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 行业痛点与我们的优势对比 (Pain Points vs Solution) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        <!-- 传统方案痛点 -->
+        <div class="bg-red-50/50 border border-red-100 rounded-xl p-8 shadow-sm">
+            <h3 class="text-lg font-bold text-red-900 mb-6 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                传统多号托管的致命缺陷
+            </h3>
+            <ul class="space-y-4 text-sm text-gray-600">
+                <li class="flex items-start gap-3">
+                    <span class="text-red-500 font-bold mt-0.5">✕</span>
+                    <div>
+                        <strong class="text-gray-800">IP 关联导致封号潮</strong>
+                        <p class="text-gray-500 mt-1">多账号在同个 IP 下并发登录，一旦某个账号因违规被封，该 IP 下的其他账号会被 Telegram 自动关联进行封禁。</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="text-red-500 font-bold mt-0.5">✕</span>
+                    <div>
+                        <strong class="text-gray-800">多实例性能瓶颈与连接断开</strong>
+                        <p class="text-gray-500 mt-1">单节点并发运行上百个 Telethon 客户端时，CPU 和内存极易被占满，导致网络延迟升高、频繁掉线和登录过期。</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="text-red-500 font-bold mt-0.5">✕</span>
+                    <div>
+                        <strong class="text-gray-800">缺乏隔离的单机架构</strong>
+                        <p class="text-gray-500 mt-1">缺乏分片机制，一台机器异常宕机导致所有托管账号的业务全部瘫痪，造成不可挽回的私域流量流失。</p>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 我们的解决方案 -->
+        <div class="bg-emerald-50/50 border border-emerald-100 rounded-xl p-8 shadow-sm">
+            <h3 class="text-lg font-bold text-emerald-900 mb-6 flex items-center gap-2">
+                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                我们的安全托管技术方案
+            </h3>
+            <ul class="space-y-4 text-sm text-gray-600">
+                <li class="flex items-start gap-3">
+                    <span class="text-emerald-600 font-bold mt-0.5">✓</span>
+                    <div>
+                        <strong class="text-gray-800">独享独立代理（物理隔离）</strong>
+                        <p class="text-gray-500 mt-1">支持为每个托管账号绑定专有的 Socks5/MTProto 网络代理。账号网络相互独立，规避任何关联封号风险。</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="text-emerald-600 font-bold mt-0.5">✓</span>
+                    <div>
+                        <strong class="text-gray-800">底层分布式号池分片（Sharding）</strong>
+                        <p class="text-gray-500 mt-1">通过 <code>POOL_TOTAL_SHARDS</code> 实现多实例分片运行。每个分片独立拉取任务，支持平滑横向扩展，轻松托管数千个账号。</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="text-emerald-600 font-bold mt-0.5">✓</span>
+                    <div>
+                        <strong class="text-gray-800">安全防漂移卫士机制</strong>
+                        <p class="text-gray-500 mt-1">系统内置 <code>POOL_SHARD_GUARD</code>。一旦检测到分片分配异常或配置冲突，自动安全挂起避免重复登录造成封号。</p>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 运行机制图示 -->
+    <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm mb-12 text-center">
+        <h3 class="text-xl font-bold text-gray-900 mb-2">分布式代理托管拓扑架构</h3>
+        <p class="text-sm text-gray-500 mb-8">数据物理隔离，通过集群节点分片处理，保障账号绝对安全</p>
+        
+        <div class="flex flex-col md:flex-row items-center justify-center gap-6 max-w-4xl mx-auto">
+            <!-- 节点 1 -->
+            <div class="flex-1 bg-gray-50 rounded-lg p-6 border border-gray-100 w-full relative z-10">
+                <div class="text-xs font-bold text-indigo-600 mb-2">分片实例 (Shard 0)</div>
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded shadow-xs text-left border border-gray-100">
+                        <div class="text-xs font-bold text-gray-800">账号 A (Telethon)</div>
+                        <div class="text-xs text-gray-500 mt-1">关联 ➜ 独享代理 45.x.x.1</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-xs text-left border border-gray-100">
+                        <div class="text-xs font-bold text-gray-800">账号 B (Telethon)</div>
+                        <div class="text-xs text-gray-500 mt-1">关联 ➜ 独享代理 45.x.x.2</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-gray-400 font-bold rotate-90 md:rotate-0 relative z-10">⇆</div>
+            
+            <!-- 中央调度器 -->
+            <div class="flex-1 bg-indigo-50/50 rounded-lg p-6 border border-indigo-100 w-full py-8 relative z-10">
+                <div class="text-xs font-bold text-indigo-800 mb-2">MySQL 号池与心跳调度中心</div>
+                <p class="text-xs text-gray-500 leading-relaxed">
+                    <code>InstanceHeartbeat</code> 实时上报节点活跃度。自动隔离故障实例，动态重平衡。
+                </p>
+            </div>
+            
+            <div class="text-gray-400 font-bold rotate-90 md:rotate-0 relative z-10">⇆</div>
+
+            <!-- 节点 2 -->
+            <div class="flex-1 bg-gray-50 rounded-lg p-6 border border-gray-100 w-full relative z-10">
+                <div class="text-xs font-bold text-indigo-600 mb-2">分片实例 (Shard 1)</div>
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded shadow-xs text-left border border-gray-100">
+                        <div class="text-xs font-bold text-gray-800">账号 C (Telethon)</div>
+                        <div class="text-xs text-gray-500 mt-1">关联 ➜ 独享代理 45.x.x.3</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-xs text-left border border-gray-100">
+                        <div class="text-xs font-bold text-gray-800">账号 D (Telethon)</div>
+                        <div class="text-xs text-gray-500 mt-1">关联 ➜ 独享代理 45.x.x.4</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 常见问题 (FAQ) -->
+    <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm mb-12">
+        <h3 class="text-xl font-bold text-gray-900 mb-6 text-center">关于账号托管的常见疑问</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-gray-600">
+            <div>
+                <h4 class="font-bold text-gray-800 mb-2">1. 什么是 Socks5/MTProto 独立代理？</h4>
+                <p class="text-gray-500 leading-relaxed">
+                    独立代理是将您的每个 Telegram 账号的网络流量单独分流，不与其他账号共用出口 IP。这样即使某个账号有敏感操作，其他账号也不会受波及，能有效降低批量封号概率。
+                </p>
+            </div>
+            <div>
+                <h4 class="font-bold text-gray-800 mb-2">2. 系统最多支持托管多少个账号？</h4>
+                <p class="text-gray-500 leading-relaxed">
+                    由于底层采用了分布式分片架构（Sharding），支持横向扩展。您可以通过配置 <code>POOL_TOTAL_SHARDS</code> 轻松将账号负载分散在多台机器上，理论上支持无限数量的账号托管。
+                </p>
+            </div>
+            <div>
+                <h4 class="font-bold text-gray-800 mb-2">3. 软删除审计有什么作用？</h4>
+                <p class="text-gray-500 leading-relaxed">
+                    为了防止误操作，我们的系统对账号采用“软删除”机制（Soft Delete）。当您在控制台移除某个账号时，系统并不会彻底清除数据，而是将其状态标记为已停用，方便后续进行审计和找回。
+                </p>
+            </div>
+            <div>
+                <h4 class="font-bold text-gray-800 mb-2">4. 托管时我的账号密码会被泄露吗？</h4>
+                <p class="text-gray-500 leading-relaxed">
+                    系统仅将您的 session 会话安全存储在受隔离的本地或云存储中。我们绝不会传输您的密码或二次验证（2FA）密码，且账号的所有登录态和凭据均采用高强度加密管理。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 转换区 (CTA Area) -->
+    <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-8 sm:p-10 text-center shadow-sm">
+        <h3 class="text-xl sm:text-2xl font-bold text-gray-900 mb-3">立即启用您的多账号安全托管平台</h3>
+        <p class="text-gray-500 text-sm mb-6 max-w-xl mx-auto">
+            仅需 30 秒，即可通过免登录演示模式体验完整控制台；或注册独立账号，开始绑定您的代理与号池。
+        </p>
+        <div class="flex items-center justify-center gap-4">
+            <form action="/web/auth/try-now" method="POST">
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-2.5 border border-transparent text-sm font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
+                    免注册快速体验
+                </button>
+            </form>
+            <a href="/web/register" class="inline-flex items-center justify-center px-6 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                创建账号
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

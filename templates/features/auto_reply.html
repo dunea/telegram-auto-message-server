@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram 智能自动回复 - 毫秒级多关键词精确匹配与富媒体自动锁客 - {{ site_name }}{% endblock %}
+
+{% block content %}
+<!-- 主背景包裹器：提供与运行状态页一致的白色简约中控面板，统一样式与边距，消除不协调感 -->
+<div class="bg-white text-gray-800 p-6 sm:p-8 rounded-3xl border border-gray-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden animate-fade-in">
+    <!-- 浅色背景渐变柔光 (WOW 视觉效果) -->
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <!-- 面包屑导航 -->
+    <nav class="flex mb-8 text-sm text-gray-500 relative z-10" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="/" class="hover:text-indigo-600 transition-colors">首页</a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="text-gray-400">功能特性</span>
+                </div>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="text-gray-700 font-medium">智能自动回复</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- 英雄区 (Hero Section) -->
+    <div class="bg-gradient-to-br from-indigo-900 to-indigo-950 rounded-2xl text-white p-8 sm:p-12 shadow-xl mb-12 relative overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.15),transparent)] pointer-events-none"></div>
+        <div class="max-w-3xl relative z-10">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-semibold mb-4">
+                ⚡ 毫秒级匹配 · 24H 自动锁客
+            </span>
+            <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight mb-6 leading-tight">
+                关键词智能自动回复<br class="hidden sm:inline">
+                支持富媒体附件，全天候零延迟回复
+            </h1>
+            <p class="text-base sm:text-lg text-indigo-100/80 mb-8 leading-relaxed">
+                无需人工值守。系统基于 Telethon 原生事件循环监听，收到特定触发词立即在毫秒内做出精准反馈。
+                支持从本地或 S3 云存储拉取图片、视频及文件，针对群聊与私聊进行深度的话术和规则定制。
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <form action="/web/auth/try-now" method="POST" class="w-full sm:w-auto">
+                    <button type="submit" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-bold rounded-lg text-indigo-950 bg-white hover:bg-indigo-50 shadow-sm transition duration-150 transform hover:scale-[1.01]">
+                        免注册即刻试用
+                    </button>
+                </form>
+                <a href="/web/register" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-indigo-400 text-sm font-bold rounded-lg text-white hover:bg-indigo-800/50 shadow-sm transition duration-150">
+                    创建账号
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 功能亮点网格 (Feature Highlights) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm flex flex-col hover:shadow-md transition duration-200">
+            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center mb-6 text-indigo-600">
+                🔍
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">多模式模糊与精确匹配</h3>
+            <p class="text-gray-500 text-sm leading-relaxed">
+                支持单规则配置多个关键词。既支持精准匹配（全字符一致），也支持包含匹配（模糊搜索），确保错字漏字也能智能拦截并匹配最佳话术。
+            </p>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm flex flex-col hover:shadow-md transition duration-200">
+            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center mb-6 text-indigo-600">
+                🖼️
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">富媒体附件混合回复</h3>
+            <p class="text-gray-500 text-sm leading-relaxed">
+                不仅是文字。您可以为规则关联图片、宣传视频或安装包等文件，系统自动从 S3 或本地缓存调取并极速发送，大幅提升私域转化率。
+            </p>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm flex flex-col hover:shadow-md transition duration-200">
+            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center mb-6 text-indigo-600">
+                👥
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">群聊与私聊独立控制</h3>
+            <p class="text-gray-500 text-sm leading-relaxed">
+                满足不同场景需求。您可以限制规则仅在群组内生效（如群内广告屏蔽、新人指引），或仅在私聊对话中生效（如业务客服、商务咨询）。
+            </p>
+        </div>
+    </div>
+
+    <!-- 运行机制图示 (Process Topology) -->
+    <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm mb-12 text-center relative z-10">
+        <h3 class="text-xl font-bold text-gray-900 mb-2">毫秒级自动回复工作流机制</h3>
+        <p class="text-sm text-gray-500 mb-8">监听新消息事件 ➜ 解析触发匹配 ➜ 获取回复媒体 ➜ 异常分类重试</p>
+        
+        <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-100 flex flex-col items-center justify-center">
+                <span class="text-2xl mb-2">📥</span>
+                <div class="text-xs font-bold text-gray-800 mb-1">1. 捕获事件</div>
+                <p class="text-xs text-gray-500">Telethon 实时捕获群组/私聊的新发消息事件</p>
+            </div>
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-100 flex flex-col items-center justify-center">
+                <span class="text-2xl mb-2">⚡</span>
+                <div class="text-xs font-bold text-gray-800 mb-1">2. 规则引擎</div>
+                <p class="text-xs text-gray-500">毫秒内对匹配词进行精确与包含分析匹配</p>
+            </div>
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-100 flex flex-col items-center justify-center">
+                <span class="text-2xl mb-2">📦</span>
+                <div class="text-xs font-bold text-gray-800 mb-1">3. 获取附件</div>
+                <p class="text-xs text-gray-500">若有绑定媒体，自动拉取本地/S3缓存中的文件</p>
+            </div>
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-100 flex flex-col items-center justify-center">
+                <span class="text-2xl mb-2">📤</span>
+                <div class="text-xs font-bold text-gray-800 mb-1">4. 极速响应</div>
+                <p class="text-xs text-gray-500">将消息发出，内置错误分类对可重试错误做智能补偿</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 优势技术深度背书 (Technical Details) -->
+    <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm mb-12">
+        <h3 class="text-xl font-bold text-gray-900 mb-6 text-center">强大的底层错误分类与智能重试机制</h3>
+        <p class="text-sm text-gray-500 mb-6 max-w-2xl mx-auto text-center">
+            出海营销最怕网络波动和接口报错。我们的回复引擎内置了专业的错误分类逻辑，实现业务的高送达率。
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-gray-600">
+            <div class="space-y-4">
+                <h4 class="font-bold text-gray-800 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    单一数据源的错误分类器
+                </h4>
+                <p class="text-gray-500 leading-relaxed pl-4">
+                    系统在 <code>app/common/error_classifier.py</code> 中定义了统一的错误处理方案。自动将捕获的 Telethon 网络报错、Telegram API 频控限制和超时报错进行统一归类，不重复开发冗余规则。
+                </p>
+            </div>
+            <div class="space-y-4">
+                <h4 class="font-bold text-gray-800 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    毫秒级重试策略与防闪崩
+                </h4>
+                <p class="text-gray-500 leading-relaxed pl-4">
+                    将错误划分为“可重试（如连接超时）”与“不可重试（如账号失效、被禁言）”。可重试的错误自动加入重试队列进行指数退避规避风控，避免频繁报错拖垮号池整体活跃状态。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 转换区 (CTA Area) -->
+    <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-8 sm:p-10 text-center shadow-sm">
+        <h3 class="text-xl sm:text-2xl font-bold text-gray-900 mb-3">开启您的全天候智能客服机器人</h3>
+        <p class="text-gray-500 text-sm mb-6 max-w-xl mx-auto">
+            立即配置自动回复规则，解放客服人力，实现客户进群/私聊的第一时间锁客与引流。
+        </p>
+        <div class="flex items-center justify-center gap-4">
+            <form action="/web/auth/try-now" method="POST">
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-2.5 border border-transparent text-sm font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
+                    免注册快速体验
+                </button>
+            </form>
+            <a href="/web/register" class="inline-flex items-center justify-center px-6 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                创建账号
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

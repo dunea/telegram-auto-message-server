@@ -67,6 +67,18 @@
                             文件管理
                         </a>
                         {% else %}
+                        <!-- 功能特性下拉菜单 -->
+                        <div class="relative inline-flex items-center" id="features-dropdown-container">
+                            <button type="button" onclick="toggleFeaturesDropdown()" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 h-full gap-1">
+                                <span>功能特性</span>
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <div class="hidden absolute top-16 left-0 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50" id="features-dropdown">
+                                <a href="/web/features/hosting" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600 font-medium">多账号托管 & 独立代理</a>
+                                <a href="/web/features/auto-reply" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600 font-medium">智能自动回复</a>
+                                <a href="/web/features/scheduled" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600 font-medium">定时消息 & 媒体管理</a>
+                            </div>
+                        </div>
                         <a href="/web/status" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/status' or request.url.path.startswith('/web/status/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             运行状态
                         </a>
@@ -147,6 +159,17 @@
                     个人资料
                 </a>
                 {% else %}
+                <div class="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">功能特性</div>
+                <a href="/web/features/hosting" class="block pl-6 pr-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/features/hosting' %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50{% endif %}">
+                    多账号托管 & 独立代理
+                </a>
+                <a href="/web/features/auto-reply" class="block pl-6 pr-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/features/auto-reply' %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50{% endif %}">
+                    智能自动回复
+                </a>
+                <a href="/web/features/scheduled" class="block pl-6 pr-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/features/scheduled' %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50{% endif %}">
+                    定时消息 & 媒体管理
+                </a>
+                <div class="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider border-t border-gray-100 mt-2">系统状态</div>
                 <a href="/web/status" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/status' or request.url.path.startswith('/web/status/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     运行状态
                 </a>
@@ -243,9 +266,74 @@
 
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-400">
-            &copy; 2026 {{ site_name }}. All rights reserved.
+    <footer class="bg-white border-t border-gray-200 pt-10 pb-6 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 text-left">
+                <!-- 第一列：品牌介绍 -->
+                <div class="space-y-3">
+                    <div class="flex items-center gap-2 text-indigo-600 font-bold text-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <span>{{ site_name }}</span>
+                    </div>
+                    <p class="text-xs text-gray-400 leading-relaxed">
+                        基于 FastAPI + Telethon 的自动化 Telegram 消息托管与群发 platform。保障账号物理隔离，防风控，高送达率。
+                    </p>
+                </div>
+
+                <!-- 第二列：产品功能 -->
+                <div>
+                    <h3 class="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">产品功能</h3>
+                    <ul class="space-y-2 text-xs">
+                        <li>
+                            <a href="/web/features/hosting" class="text-gray-500 hover:text-indigo-600 transition-colors">多账号托管 & 独立代理</a>
+                        </li>
+                        <li>
+                            <a href="/web/features/auto-reply" class="text-gray-500 hover:text-indigo-600 transition-colors">智能自动回复</a>
+                        </li>
+                        <li>
+                            <a href="/web/features/scheduled" class="text-gray-500 hover:text-indigo-600 transition-colors">定时消息 & 媒体管理</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 第三列：关于与状态 -->
+                <div>
+                    <h3 class="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">关于与状态</h3>
+                    <ul class="space-y-2 text-xs">
+                        <li>
+                            <a href="/web/status" class="text-gray-500 hover:text-indigo-600 transition-colors">系统运行状态</a>
+                        </li>
+                        <li>
+                            <a href="/web/repository" class="text-gray-500 hover:text-indigo-600 transition-colors">开源仓库及文档</a>
+                        </li>
+                        <li>
+                            <a href="/" class="text-gray-500 hover:text-indigo-600 transition-colors">返回首页</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 第四列：商务联系 -->
+                <div>
+                    <h3 class="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">商务与技术支持</h3>
+                    <ul class="space-y-2 text-xs">
+                        <li>
+                            <a href="https://t.me/nuoyea" target="_blank" class="text-gray-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                                💬 联系客服 (@nuoyea)
+                            </a>
+                        </li>
+                        <li>
+                            <span class="text-gray-400">承接APP/网站/API定制服务</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 底栏版权 -->
+            <div class="border-t border-gray-100 pt-6 text-center text-xs text-gray-400">
+                &copy; 2026 {{ site_name }}. All rights reserved.
+            </div>
         </div>
     </footer>
 
@@ -264,6 +352,22 @@
                 closeIcon.classList.add('hidden');
             }
         }
+        
+        function toggleFeaturesDropdown() {
+            const dropdown = document.getElementById('features-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('hidden');
+            }
+        }
+        
+        // 点击页面其他部分关闭下拉菜单
+        window.addEventListener('click', function(e) {
+            const container = document.getElementById('features-dropdown-container');
+            const dropdown = document.getElementById('features-dropdown');
+            if (container && dropdown && !container.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram Cron 定时群发与媒体文件管理 - 高送达率群发系统 - {{ site_name }}{% endblock %}
+
+{% block content %}
+<!-- 主背景包裹器：提供与运行状态页一致的白色简约中控面板，统一样式与边距，消除不协调感 -->
+<div class="bg-white text-gray-800 p-6 sm:p-8 rounded-3xl border border-gray-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden animate-fade-in">
+    <!-- 浅色背景渐变柔光 (WOW 视觉效果) -->
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-50/60 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <!-- 面包屑导航 -->
+    <nav class="flex mb-8 text-sm text-gray-500 relative z-10" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="/" class="hover:text-indigo-600 transition-colors">首页</a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="text-gray-400">功能特性</span>
+                </div>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="text-gray-700 font-medium">Cron 定时群发与媒体管理</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- 英雄区 (Hero Section) -->
+    <div class="bg-gradient-to-br from-indigo-900 to-indigo-950 rounded-2xl text-white p-8 sm:p-12 shadow-xl mb-12 relative overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.15),transparent)] pointer-events-none"></div>
+        <div class="max-w-3xl relative z-10">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-semibold mb-4">
+                🕒 精准定时 · Cron 表达式支持 · 云存储集成
+            </span>
+            <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight mb-6 leading-tight">
+                Cron 定时群发与媒体管理<br class="hidden sm:inline">
+                支持大文件加速发送与发送状态追溯
+            </h1>
+            <p class="text-base sm:text-lg text-indigo-100/80 mb-8 leading-relaxed">
+                无论是每日的例行通告，还是特定的活动促销。系统内置 APScheduler 引擎，
+                支持灵活的 Cron 定时表达式，定时投递出站消息。集成 S3 与本地双级存储管理，支持批量上传、智能本地清理，确保发送零卡顿。
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <form action="/web/auth/try-now" method="POST" class="w-full sm:w-auto">
+                    <button type="submit" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-bold rounded-lg text-indigo-950 bg-white hover:bg-indigo-50 shadow-sm transition duration-150 transform hover:scale-[1.01]">
+                        免注册即刻试用
+                    </button>
+                </form>
+                <a href="/web/register" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-indigo-400 text-sm font-bold rounded-lg text-white hover:bg-indigo-800/50 shadow-sm transition duration-150">
+                    创建账号
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 优势部分网格 (Features Grid) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm flex flex-col hover:shadow-md transition duration-200">
+            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center mb-6 text-indigo-600">
+                📅
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">强大的定时调度引擎</h3>
+            <p class="text-gray-500 text-sm leading-relaxed">
+                底层结合 APScheduler 框架实现。支持秒级间隔、日期一次性发送与完整的 Cron 分/时/天表达式规则。即使服务器关机重启，也会在恢复后自动补偿或重新载入规则，杜绝漏发漏报。
+            </p>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm flex flex-col hover:shadow-md transition duration-200">
+            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center mb-6 text-indigo-600">
+                ☁️
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">多云端 S3 & 本地缓存</h3>
+            <p class="text-gray-500 text-sm leading-relaxed">
+                兼容 Amazon S3 等标准的云对象存储，也支持在服务器本地缓存（支持 <code>LOCAL_TEMP_MAX_BYTES</code> 容量控制与定时后台自动清理过期文件），大文件上传更流畅，群发读取零卡顿。
+            </p>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm flex flex-col hover:shadow-md transition duration-200">
+            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center mb-6 text-indigo-600">
+                📊
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">多账号轮询与发送历史</h3>
+            <p class="text-gray-500 text-sm leading-relaxed">
+                任务支持选择多个托管账号轮替出站发送。系统在后台详细记录每一条出站消息的状态（成功/失败/等待），对出站队列有完整的可读分析，助您随时掌握群发进度。
+            </p>
+        </div>
+    </div>
+
+    <!-- APScheduler 与 S3 架构设计拓扑 -->
+    <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm mb-12 text-center relative z-10">
+        <h3 class="text-xl font-bold text-gray-900 mb-2">定时群发与媒体加载系统架构</h3>
+        <p class="text-sm text-gray-500 mb-8">APScheduler 触发 ➜ 从 S3/本地临时目录拉取媒体 ➜ 分片并发执行出站 ➜ 写入发送状态</p>
+        
+        <div class="flex flex-col md:flex-row items-stretch justify-center gap-6 max-w-4xl mx-auto">
+            <!-- 触发模块 -->
+            <div class="flex-1 bg-indigo-50/40 rounded-lg p-6 border border-indigo-100 flex flex-col justify-between">
+                <div>
+                    <div class="text-xs font-bold text-indigo-800 mb-2">1. 定时触发 (APScheduler)</div>
+                    <p class="text-xs text-gray-500 leading-relaxed">
+                        根据设定的间隔、日期或 Cron 规则动态计时，毫秒级精准回调触发发送事件。
+                    </p>
+                </div>
+                <div class="mt-4 text-xs text-gray-500 bg-white/80 p-2 rounded border border-indigo-50">
+                    运行状态：活跃运行中 (Active)
+                </div>
+            </div>
+
+            <div class="text-gray-400 font-bold flex items-center justify-center rotate-90 md:rotate-0">➔</div>
+
+            <!-- 文件处理模块 -->
+            <div class="flex-1 bg-gray-50 rounded-lg p-6 border border-gray-100 flex flex-col justify-between">
+                <div>
+                    <div class="text-xs font-bold text-gray-800 mb-2">2. 媒体云存储 & 本地双级目录</div>
+                    <p class="text-xs text-gray-500 leading-relaxed">
+                        支持上传到远程 S3 桶，并在 <code>LOCAL_TEMP_DIR</code> 中维护本地零时目录，定时后台任务自动清理过期缓存。
+                    </p>
+                </div>
+                <div class="mt-4 text-xs text-gray-500 bg-white/80 p-2 rounded border border-gray-100">
+                    缓存清理周期：每 60 分钟自动扫描
+                </div>
+            </div>
+
+            <div class="text-gray-400 font-bold flex items-center justify-center rotate-90 md:rotate-0">➔</div>
+
+            <!-- 执行与审计模块 -->
+            <div class="flex-1 bg-gray-50 rounded-lg p-6 border border-gray-100 flex flex-col justify-between">
+                <div>
+                    <div class="text-xs font-bold text-gray-800 mb-2">3. 并发执行与软删除审计</div>
+                    <p class="text-xs text-gray-500 leading-relaxed">
+                        从分片号池拉取并发执行器发送。全部规则与出站历史均提供安全软删除以应对后续数据审计需求。
+                    </p>
+                </div>
+                <div class="mt-4 text-xs text-gray-500 bg-white/80 p-2 rounded border border-gray-100">
+                    审计状态：日志结构化输出
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 优势技术深度背书 (Technical Highlights) -->
+    <div class="bg-white border border-gray-200 rounded-xl p-8 shadow-sm mb-12">
+        <h3 class="text-xl font-bold text-gray-900 mb-6 text-center">专为群发优化的本地临时目录设计规范</h3>
+        <p class="text-sm text-gray-500 mb-6 max-w-2xl mx-auto text-center">
+            为保证高并发发送多媒体消息时磁盘不被撑爆，系统设计了严密的缓存与文件清理机制。
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-gray-600">
+            <div class="space-y-4">
+                <h4 class="font-bold text-gray-800 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    磁盘阈值安全屏障
+                </h4>
+                <p class="text-gray-500 leading-relaxed pl-4">
+                    通过环境变量 <code>LOCAL_TEMP_MAX_BYTES</code>（默认 5GB）限制临时目录最大容量。如果上传或拉取的文件超过该限额，系统会自动阻断并清理最早的缓存文件，提供高可靠的数据屏障。
+                </p>
+            </div>
+            <div class="space-y-4">
+                <h4 class="font-bold text-gray-800 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    全天候自动化清理任务
+                </h4>
+                <p class="text-gray-500 leading-relaxed pl-4">
+                    后台自动开启独立协程轮询 <code>CleanupExpiredFiles</code>，每隔一定时间扫描并删除保留期（如 168小时/7天）以外的文件，让系统保持极简与免维护状态，不影响群发业务流。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 转换区 (CTA Area) -->
+    <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-8 sm:p-10 text-center shadow-sm">
+        <h3 class="text-xl sm:text-2xl font-bold text-gray-900 mb-3">立即创建您的第一个定时群发规则</h3>
+        <p class="text-gray-500 text-sm mb-6 max-w-xl mx-auto">
+            支持一键免登录快速预览，查看秒级与 Cron 发送效果。
+        </p>
+        <div class="flex items-center justify-center gap-4">
+            <form action="/web/auth/try-now" method="POST">
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-2.5 border border-transparent text-sm font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
+                    免注册快速体验
+                </button>
+            </form>
+            <a href="/web/register" class="inline-flex items-center justify-center px-6 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                创建账号
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
