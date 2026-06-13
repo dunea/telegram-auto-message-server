@@ -150,41 +150,80 @@
 
     <!-- Quick Actions & Secondary Area -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <!-- Quick Actions Panel -->
-        <div class="bg-white shadow rounded-xl border border-gray-150 p-6 lg:col-span-1">
-            <h3 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                快捷快捷操作
-            </h3>
-            <div class="space-y-3">
-                <a href="/web/accounts/new" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 group transition duration-150">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        <span class="text-sm font-medium text-gray-700 group-hover:text-indigo-900">添加托管账号</span>
-                    </div>
-                    <span class="text-gray-400 group-hover:text-indigo-500">&plus;</span>
-                </a>
-                <a href="/web/auto-reply/new" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 group transition duration-150">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-emerald-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        <span class="text-sm font-medium text-gray-700 group-hover:text-emerald-900">新建自动回复规则</span>
-                    </div>
-                    <span class="text-gray-400 group-hover:text-emerald-500">&plus;</span>
-                </a>
-                <a href="/web/scheduled/new" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-amber-500 hover:bg-amber-50/50 group transition duration-150">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-amber-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <span class="text-sm font-medium text-gray-700 group-hover:text-amber-900">创建定时发送任务</span>
-                    </div>
-                    <span class="text-gray-400 group-hover:text-amber-500">&plus;</span>
+        <!-- Left Column: Actions & Support -->
+        <div class="space-y-6 lg:col-span-1">
+            <!-- Quick Actions Panel -->
+            <div class="bg-white shadow rounded-xl border border-gray-150 p-6">
+                <h3 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    快捷快捷操作
+                </h3>
+                <div class="space-y-3">
+                    <a href="/web/accounts/new" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 group transition duration-150">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            </svg>
+                            <span class="text-sm font-medium text-gray-700 group-hover:text-indigo-900">添加托管账号</span>
+                        </div>
+                        <span class="text-gray-400 group-hover:text-indigo-500">&plus;</span>
+                    </a>
+                    <a href="/web/auto-reply/new" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 group transition duration-150">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 text-emerald-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            </svg>
+                            <span class="text-sm font-medium text-gray-700 group-hover:text-emerald-900">新建自动回复规则</span>
+                        </div>
+                        <span class="text-gray-400 group-hover:text-emerald-500">&plus;</span>
+                    </a>
+                    <a href="/web/scheduled/new" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-amber-500 hover:bg-amber-50/50 group transition duration-150">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 text-amber-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            <span class="text-sm font-medium text-gray-700 group-hover:text-amber-900">创建定时发送任务</span>
+                        </div>
+                        <span class="text-gray-400 group-hover:text-amber-500">&plus;</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Technical Support & Custom Development -->
+            <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 shadow rounded-xl border border-indigo-100 p-6 hover:shadow-md transition duration-200">
+                <h3 class="text-lg font-bold text-gray-900 border-b border-indigo-100 pb-3 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.4.52-.46-.01-1.35-.26-2.01-.48-.81-.27-1.46-.42-1.4-.88.03-.24.38-.49 1.04-.75 4.07-1.77 6.79-2.94 8.15-3.5 3.88-1.61 4.69-1.89 5.22-1.9.12 0 .38.03.55.17.14.12.18.28.2.45-.02.07-.02.2-.04.28z"/>
+                    </svg>
+                    技术支持与定制开发
+                </h3>
+                <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+                    如需系统维护、功能定制或全新项目开发，欢迎随时联系客服。我们承接以下业务领域的高端定制服务：
+                </p>
+                <div class="flex flex-wrap gap-2 mb-5">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                        APP开发
+                    </span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        网站开发
+                    </span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                        API定制
+                    </span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200">
+                        机器人开发
+                    </span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-200">
+                        区块链开发
+                    </span>
+                </div>
+                <a href="https://t.me/nuoyea" target="_blank" class="w-full flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-md hover:shadow-lg transition-all duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.4.52-.46-.01-1.35-.26-2.01-.48-.81-.27-1.46-.42-1.4-.88.03-.24.38-.49 1.04-.75 4.07-1.77 6.79-2.94 8.15-3.5 3.88-1.61 4.69-1.89 5.22-1.9.12 0 .38.03.55.17.14.12.18.28.2.45-.02.07-.02.2-.04.28z"/>
+                    </svg>
+                    联系 Telegram 客服 (@nuoyea)
                 </a>
             </div>
         </div>
