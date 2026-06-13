@@ -65,7 +65,7 @@ class FileService:
             "expires_at": file_record.expires_at.isoformat() if file_record.expires_at else None,
         }
 
-    async def UploadFile(self, filename: str, content: bytes) -> dict:
+    async def UploadFile(self, filename: str, content: bytes, owner_user_id: int | None = None) -> dict:
         if not content:
             raise ValueError("文件内容不能为空")
 
@@ -88,6 +88,7 @@ class FileService:
             file_size_bytes=int(size_bytes),
             status="pending",
             expires_at=expires_at,
+            owner_user_id=owner_user_id,
         )
         await self._file_record_repository.Save(file_record)
         await self._session.flush()
@@ -126,24 +127,28 @@ class FileService:
             "s3_url": result["s3_url"],
         }
 
-    async def ListFiles(self, status: str | None, limit: int, offset: int) -> dict:
-        items = await self._file_record_repository.FindAllOrderByIdDesc(limit=limit, offset=offset, status=status)
-        total = await self._file_record_repository.CountByStatus(status=status)
+    async def ListFiles(self, status: str | None, limit: int, offset: int, owner_user_id: int | None = None) -> dict:
+        items = await self._file_record_repository.FindAllOrderByIdDesc(limit=limit, offset=offset, status=status, owner_user_id=owner_user_id)
+        total = await self._file_record_repository.CountByStatus(status=status, owner_user_id=owner_user_id)
         return {
             "total": int(total),
             "items": [self._to_item(item) for item in items],
         }
 
-    async def GetFileById(self, file_id: int) -> dict:
+    async def _get_file_or_raise(self, file_id: int, owner_user_id: int | None = None) -> FileRecord:
         file_record = await self._file_record_repository.FindById(file_id)
         if file_record is None:
             raise ValueError("文件不存在")
+        if owner_user_id is not None and file_record.owner_user_id != owner_user_id:
+            raise ValueError("文件不存在")
+        return file_record
+
+    async def GetFileById(self, file_id: int, owner_user_id: int | None = None) -> dict:
+        file_record = await self._get_file_or_raise(file_id, owner_user_id)
         return self._to_item(file_record)
 
-    async def DownloadFile(self, file_id: int) -> tuple[bytes, str, str]:
-        file_record = await self._file_record_repository.FindById(file_id)
-        if file_record is None:
-            raise ValueError("文件不存在")
+    async def DownloadFile(self, file_id: int, owner_user_id: int | None = None) -> tuple[bytes, str, str]:
+        file_record = await self._get_file_or_raise(file_id, owner_user_id)
         if file_record.status == "deleted":
             raise ValueError("文件已删除")
 
@@ -162,10 +167,8 @@ class FileService:
         mime_type, _ = mimetypes.guess_type(filename)
         return content, filename, mime_type or "application/octet-stream"
 
-    async def SoftDeleteFile(self, file_id: int) -> dict:
-        file_record = await self._file_record_repository.FindById(file_id)
-        if file_record is None:
-            raise ValueError("文件不存在")
+    async def SoftDeleteFile(self, file_id: int, owner_user_id: int | None = None) -> dict:
+        file_record = await self._get_file_or_raise(file_id, owner_user_id)
 
         if file_record.s3_key:
             await self._s3_adapter.DeleteFile(key=file_record.s3_key)

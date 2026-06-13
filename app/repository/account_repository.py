@@ -40,6 +40,14 @@ class TelegramAccountRepository(ABC):
     async def UpdateSessionStringById(self, account_id: int, session_string: str) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
+    async def FindAllByOwnerUserId(self, user_id: int) -> list[TelegramAccount]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def ExistsByIdAndOwnerUserId(self, account_id: int, user_id: int) -> bool:
+        raise NotImplementedError
+
 
 class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], TelegramAccountRepository):
     def __init__(self, session: AsyncSession) -> None:
@@ -81,3 +89,14 @@ class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], Teleg
         account.session_string = session_string
         await self._session.flush()
         return True
+
+    async def FindAllByOwnerUserId(self, user_id: int) -> list[TelegramAccount]:
+        stmt = select(TelegramAccount).where(TelegramAccount.owner_user_id == user_id).order_by(TelegramAccount.id.desc())
+        return list((await self._session.scalars(stmt)).all())
+
+    async def ExistsByIdAndOwnerUserId(self, account_id: int, user_id: int) -> bool:
+        stmt = select(TelegramAccount.id).where(
+            TelegramAccount.id == account_id,
+            TelegramAccount.owner_user_id == user_id
+        )
+        return (await self._session.scalar(stmt)) is not None

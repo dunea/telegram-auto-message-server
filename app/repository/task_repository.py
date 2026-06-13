@@ -46,6 +46,10 @@ class AutoReplyRuleRepository(ABC):
     async def UpdateIsActiveById(self, rule_id: int, is_active: bool) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
+    async def ExistsByIdAndOwnerUserId(self, rule_id: int, user_id: int) -> bool:
+        raise NotImplementedError
+
 
 class ScheduledMessageTaskRepository(ABC):
     """定时任务仓储接口（异步版本，PR #8 引入）。
@@ -80,6 +84,10 @@ class ScheduledMessageTaskRepository(ABC):
 
     @abstractmethod
     async def UpdateIsActiveById(self, task_id: int, is_active: bool) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def ExistsByIdAndOwnerUserId(self, task_id: int, user_id: int) -> bool:
         raise NotImplementedError
 
 
@@ -168,6 +176,13 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
         await self._session.flush()
         return True
 
+    async def ExistsByIdAndOwnerUserId(self, rule_id: int, user_id: int) -> bool:
+        stmt = select(AutoReplyRule.id).where(
+            AutoReplyRule.id == rule_id,
+            AutoReplyRule.owner_user_id == user_id
+        )
+        return (await self._session.scalar(stmt)) is not None
+
 
 class SqlAlchemyScheduledMessageTaskRepository(BaseRepository[ScheduledMessageTask], ScheduledMessageTaskRepository):
     def __init__(self, session: AsyncSession) -> None:
@@ -222,6 +237,13 @@ class SqlAlchemyScheduledMessageTaskRepository(BaseRepository[ScheduledMessageTa
         task.is_active = is_active
         await self._session.flush()
         return True
+
+    async def ExistsByIdAndOwnerUserId(self, task_id: int, user_id: int) -> bool:
+        stmt = select(ScheduledMessageTask.id).where(
+            ScheduledMessageTask.id == task_id,
+            ScheduledMessageTask.owner_user_id == user_id
+        )
+        return (await self._session.scalar(stmt)) is not None
 
 
 class SqlAlchemyRuleMessageTaskRepository(BaseRepository[RuleMessageTask], RuleMessageTaskRepository):

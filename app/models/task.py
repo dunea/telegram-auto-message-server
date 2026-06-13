@@ -44,6 +44,9 @@ class ScheduledMessageTask(Base, TimestampMixin):
     message_ids: Mapped[list | None] = mapped_column(
         JSON, nullable=True, comment="关联消息内容ID列表(JSON数组)"
     )
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+    )
 
 
 class RuleMessageTask(Base, TimestampMixin):
@@ -71,6 +74,9 @@ class RuleMessageTask(Base, TimestampMixin):
     # 禁用后规则不参与匹配。
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, comment="规则启用状态"
+    )
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, default=None, comment="归属用户 ID"
     )
 
 
@@ -105,6 +111,9 @@ class AutoReplyRule(Base, TimestampMixin):
     )
     conversation_ids: Mapped[list | None] = mapped_column(
         JSON, nullable=True, comment="指定会话ID列表(JSON数组)"
+    )
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, default=None, comment="归属用户 ID"
     )
 
     reply_messages: Mapped[list["ReplyMessage"]] = relationship(

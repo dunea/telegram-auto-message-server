@@ -25,6 +25,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(get_cu
 async def create_schedule_task(
     payload: CreateScheduledTaskRequest,
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """创建定时任务。
 
@@ -44,7 +45,7 @@ async def create_schedule_task(
     业务校验失败时，ValueError 映射为 400。
     """
     with map_http_exceptions((ValueError, 400)):
-        return await task_service.RegisterScheduledTask(payload.model_dump())
+        return await task_service.RegisterScheduledTask(payload.model_dump(), owner_user_id=current_user.id)
 
 
 @router.get("/schedule", response_model=ScheduledTaskListResponse)
@@ -53,9 +54,10 @@ async def list_schedule_tasks(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> ScheduledTaskListResponse:
     """查询定时消息列表。"""
-    result = await task_service.ListScheduledTasksByAccountId(account_id=account_id, limit=limit, offset=offset)
+    result = await task_service.ListScheduledTasksByAccountId(account_id=account_id, limit=limit, offset=offset, owner_user_id=current_user.id)
     return ScheduledTaskListResponse(**result)
 
 
@@ -63,10 +65,11 @@ async def list_schedule_tasks(
 async def get_schedule_task(
     task_id: int,
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> ScheduledTaskResponse:
     """获取单个定时消息。"""
     with map_http_exceptions((ValueError, 404)):
-        return ScheduledTaskResponse(**await task_service.GetScheduledTaskById(task_id=task_id))
+        return ScheduledTaskResponse(**await task_service.GetScheduledTaskById(task_id=task_id, owner_user_id=current_user.id))
 
 
 @router.put("/schedule/{task_id}", response_model=ScheduledTaskResponse)
@@ -74,10 +77,11 @@ async def update_schedule_task(
     task_id: int,
     payload: UpdateScheduledTaskRequest,
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> ScheduledTaskResponse:
     """修改定时消息。"""
     with map_http_exceptions((ValueError, 404)):
-        result = await task_service.UpdateScheduledTask(task_id=task_id, payload=payload.model_dump())
+        result = await task_service.UpdateScheduledTask(task_id=task_id, payload=payload.model_dump(), owner_user_id=current_user.id)
         return ScheduledTaskResponse(**result)
 
 
@@ -86,10 +90,11 @@ async def update_schedule_task_active(
     task_id: int,
     payload: UpdateTaskActiveRequest,
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> ScheduledTaskResponse:
     """启用或停用定时消息。"""
     with map_http_exceptions((ValueError, 404)):
-        result = await task_service.SetScheduledTaskActive(task_id=task_id, is_active=payload.is_active)
+        result = await task_service.SetScheduledTaskActive(task_id=task_id, is_active=payload.is_active, owner_user_id=current_user.id)
         return ScheduledTaskResponse(**result)
 
 
@@ -97,16 +102,18 @@ async def update_schedule_task_active(
 async def delete_schedule_task(
     task_id: int,
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """软删除定时消息。"""
     with map_http_exceptions((ValueError, 404)):
-        return await task_service.SoftDeleteScheduledTask(task_id=task_id)
+        return await task_service.SoftDeleteScheduledTask(task_id=task_id, owner_user_id=current_user.id)
 
 
 @router.post("/rule")
 async def create_rule_task(
     payload: CreateRuleTaskRequest,
     task_service: TaskService = Depends(get_task_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """创建规则任务。
 
@@ -127,4 +134,4 @@ async def create_rule_task(
     业务校验失败时，ValueError 映射为 400。
     """
     with map_http_exceptions((ValueError, 400)):
-        return await task_service.RegisterRuleTask(payload.model_dump())
+        return await task_service.RegisterRuleTask(payload.model_dump(), owner_user_id=current_user.id)

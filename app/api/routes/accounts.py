@@ -27,6 +27,7 @@ router = APIRouter(prefix="/accounts", tags=["accounts"], dependencies=[Depends(
 async def create_telegram_account(
     payload: CreateAccountRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """创建并托管一个 Telegram 账户。
 
@@ -46,6 +47,7 @@ async def create_telegram_account(
             phone_number=payload.phone_number,
             proxy_id=payload.proxy_id,
             session_string=payload.session_string,
+            owner_user_id=current_user.id,
         )
 
 
@@ -53,12 +55,14 @@ async def create_telegram_account(
 async def request_phone_login_code(
     payload: RequestPhoneLoginCodeRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> LoginStepResponse:
     """通过手机号请求验证码。"""
     with map_http_exceptions((ValueError, 400)):
         result = await telegram_service.RequestPhoneLoginCode(
             phone_number=payload.phone_number,
             proxy_id=payload.proxy_id,
+            owner_user_id=current_user.id,
         )
         return LoginStepResponse(**result)
 
@@ -68,6 +72,7 @@ async def verify_phone_login_code(
     account_id: int,
     payload: VerifyPhoneCodeRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> LoginStepResponse:
     """提交验证码并推进登录状态。"""
     with map_http_exceptions((ValueError, 404)):
@@ -75,6 +80,7 @@ async def verify_phone_login_code(
             account_id=account_id,
             phone_code_hash=payload.phone_code_hash,
             code=payload.code,
+            owner_user_id=current_user.id,
         )
         return LoginStepResponse(**result)
 
@@ -84,10 +90,15 @@ async def verify_two_factor_password(
     account_id: int,
     payload: VerifyTwoFactorPasswordRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> LoginStepResponse:
     """提交二级密码完成登录。"""
     with map_http_exceptions((ValueError, 404)):
-        result = await telegram_service.VerifyTwoFactorPassword(account_id=account_id, password=payload.password)
+        result = await telegram_service.VerifyTwoFactorPassword(
+            account_id=account_id,
+            password=payload.password,
+            owner_user_id=current_user.id,
+        )
         return LoginStepResponse(**result)
 
 
@@ -95,6 +106,7 @@ async def verify_two_factor_password(
 async def create_account_with_session_login(
     payload: CreateAccountWithSessionRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> LoginStepResponse:
     """通过 session 串登录并托管账号。"""
     with map_http_exceptions((ValueError, 400)):
@@ -102,6 +114,7 @@ async def create_account_with_session_login(
             phone_number=payload.phone_number,
             session_string=payload.session_string,
             proxy_id=payload.proxy_id,
+            owner_user_id=current_user.id,
         )
         return LoginStepResponse(**result)
 
@@ -109,9 +122,10 @@ async def create_account_with_session_login(
 @router.get("")
 async def list_telegram_accounts(
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> list[dict]:
     """列出当前服务已托管的 Telegram 账户。"""
-    return await telegram_service.ListManagedAccounts()
+    return await telegram_service.ListManagedAccounts(owner_user_id=current_user.id)
 
 
 @router.patch("/{account_id}/active", response_model=AccountStatusResponse)
@@ -119,10 +133,15 @@ async def update_account_active(
     account_id: int,
     payload: UpdateAccountActiveRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> AccountStatusResponse:
     """启用或停用账号。"""
     with map_http_exceptions((ValueError, 404)):
-        result = await telegram_service.SetAccountActive(account_id=account_id, is_active=payload.is_active)
+        result = await telegram_service.SetAccountActive(
+            account_id=account_id,
+            is_active=payload.is_active,
+            owner_user_id=current_user.id,
+        )
         return AccountStatusResponse(**result)
 
 
@@ -130,10 +149,11 @@ async def update_account_active(
 async def soft_delete_account(
     account_id: int,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """软删除账号。"""
     with map_http_exceptions((ValueError, 404)):
-        return await telegram_service.SoftDeleteAccount(account_id=account_id)
+        return await telegram_service.SoftDeleteAccount(account_id=account_id, owner_user_id=current_user.id)
 
 
 @router.post("/{account_id}/online")
@@ -141,13 +161,14 @@ async def ensure_telegram_account_online(
     account_id: int,
     payload: AccountOnlineRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """确保指定账户处于在线可发送状态。
 
     若请求体携带 session_string，会先更新本地会话串，再触发上线流程。
 
     审查关注点：
-    - 仅在显式传入 session_string 时更新，避免误覆盖已有会话；
+    - 仅在显式传入 session_string时更新，避免误覆盖已有会话；
     - 404 表示账户不存在或当前状态不允许上线。
 
     业务校验失败时，ValueError 映射为 404。
@@ -155,9 +176,11 @@ async def ensure_telegram_account_online(
     with map_http_exceptions((ValueError, 404)):
         if payload.session_string:
             await telegram_service.UpdateAccountSessionString(
-                account_id=account_id, session_string=payload.session_string
+                account_id=account_id,
+                session_string=payload.session_string,
+                owner_user_id=current_user.id,
             )
-        return await telegram_service.EnsureAccountOnline(account_id=account_id)
+        return await telegram_service.EnsureAccountOnline(account_id=account_id, owner_user_id=current_user.id)
 
 
 @router.get("/{account_id}/conversations")
@@ -165,6 +188,7 @@ async def list_telegram_conversations(
     account_id: int,
     limit: int = Query(default=50, ge=1, le=200),
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> list[dict]:
     """查询账户最近会话列表。
 
@@ -175,7 +199,7 @@ async def list_telegram_conversations(
     - limit 上限用于限制单次查询成本，避免放大 I/O 峰值。
     """
     with map_http_exceptions((ValueError, 404)):
-        return await telegram_service.ListConversations(account_id=account_id, limit=limit)
+        return await telegram_service.ListConversations(account_id=account_id, limit=limit, owner_user_id=current_user.id)
 
 
 @router.get("/{account_id}/messages/{target_identifier}")
@@ -184,6 +208,7 @@ async def list_telegram_messages(
     target_identifier: str,
     limit: int = Query(default=50, ge=1, le=200),
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> list[dict]:
     """查询账户与指定目标的消息记录。
 
@@ -200,4 +225,5 @@ async def list_telegram_messages(
             account_id=account_id,
             target_identifier=target_identifier,
             limit=limit,
+            owner_user_id=current_user.id,
         )

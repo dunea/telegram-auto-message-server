@@ -18,6 +18,7 @@ async def list_send_records(
     account_id: int = Query(..., ge=1),
     limit: int = Query(default=50, ge=1, le=200),
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> list[dict]:
     """按账户查询最近发送记录。
 
@@ -28,13 +29,14 @@ async def list_send_records(
     - 该接口用于发送行为追溯，建议与 account_id 维度审计日志联动排查；
     - limit 上限用于控制查询成本，避免批量导出式访问。
     """
-    return await telegram_service.ListSendRecords(account_id=account_id, limit=limit)
+    return await telegram_service.ListSendRecords(account_id=account_id, limit=limit, owner_user_id=current_user.id)
 
 
 @router.post("/send", response_model=SendMessageResult)
 async def send_message(
     payload: SendMessageRequest,
     telegram_service: TelegramService = Depends(get_telegram_service),
+    current_user = Depends(get_current_user),
 ) -> SendMessageResult:
     """发送一条消息并返回标准化结果。
 
@@ -82,5 +84,6 @@ async def send_message(
                 for item in message_content.media_items
             ] if message_content else None),
             source_type=payload.source_type,
+            owner_user_id=current_user.id,
         )
         return SendMessageResult(**result)

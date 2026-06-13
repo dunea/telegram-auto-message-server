@@ -44,6 +44,10 @@ class TelegramAccount(Base, TimestampMixin):
     api_hash: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None, comment="账号自定义 Telegram API Hash"
     )
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+    )
+
 
 
 class ProxyInfo(Base, TimestampMixin):

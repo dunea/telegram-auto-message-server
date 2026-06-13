@@ -231,11 +231,17 @@ class TaskService:
         await task_execution_log_repository.Save(execution_log)
         return execution_log
 
-    async def RegisterScheduledTask(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def RegisterScheduledTask(self, payload: dict[str, Any], owner_user_id: int | None = None) -> dict[str, Any]:
         """注册定时任务并接入调度器。"""
-        message_content = await self._build_message_content(int(payload["account_id"]), payload)
+        account_id = int(payload["account_id"])
+        if owner_user_id is not None:
+            from app.models.account import TelegramAccount
+            account = await self._session.get(TelegramAccount, account_id)
+            if not account or account.owner_user_id != owner_user_id:
+                raise ValueError("账号不存在")
+        message_content = await self._build_message_content(account_id, payload)
         task = ScheduledMessageTask(
-            account_id=int(payload["account_id"]),
+            account_id=account_id,
             message_content_id=int(message_content.id),
             cron_expr=str(payload["cron_expr"]),
             target_identifier=str(payload["target_identifier"]),
@@ -244,6 +250,7 @@ class TaskService:
             scope_mode=str(payload.get("scope_mode") or "all"),
             conversation_ids=payload.get("conversation_ids"),
             message_ids=payload.get("message_ids"),
+            owner_user_id=owner_user_id,
         )
         await self._scheduled_task_repository.Save(task)
         await self._session.commit()
@@ -272,19 +279,26 @@ class TaskService:
             "assigned_to_current_pool": assigned_to_current_pool,
         }
 
-    async def RegisterRuleTask(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def RegisterRuleTask(self, payload: dict[str, Any], owner_user_id: int | None = None) -> dict[str, Any]:
         """注册规则任务并接入调度器。
 
         约定：condition_json 可包含 interval_seconds 字段决定轮询频率。
         """
-        message_content = await self._build_message_content(int(payload["account_id"]), payload)
+        account_id = int(payload["account_id"])
+        if owner_user_id is not None:
+            from app.models.account import TelegramAccount
+            account = await self._session.get(TelegramAccount, account_id)
+            if not account or account.owner_user_id != owner_user_id:
+                raise ValueError("账号不存在")
+        message_content = await self._build_message_content(account_id, payload)
         task = RuleMessageTask(
-            account_id=int(payload["account_id"]),
+            account_id=account_id,
             message_content_id=int(message_content.id),
             trigger_type=str(payload["trigger_type"]),
             condition_json=str(payload["condition_json"]),
             action_json=str(payload["action_json"]),
             is_active=True,
+            owner_user_id=owner_user_id,
         )
         await self._rule_task_repository.Save(task)
         await self._session.commit()
@@ -336,13 +350,24 @@ class TaskService:
             "message_ids": task.message_ids,
         }
 
-    async def GetScheduledTaskById(self, task_id: int) -> dict[str, Any]:
+    async def _get_scheduled_task_or_raise(self, task_id: int, owner_user_id: int | None = None) -> ScheduledMessageTask:
         task = await self._scheduled_task_repository.FindById(task_id)
         if task is None:
             raise ValueError("定时消息不存在")
+        if owner_user_id is not None and task.owner_user_id != owner_user_id:
+            raise ValueError("定时消息不存在")
+        return task
+
+    async def GetScheduledTaskById(self, task_id: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        task = await self._get_scheduled_task_or_raise(task_id, owner_user_id)
         return self._to_scheduled_task_dict(task)
 
-    async def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int) -> dict[str, Any]:
+    async def ListScheduledTasksByAccountId(self, account_id: int, limit: int, offset: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        if owner_user_id is not None:
+            from app.models.account import TelegramAccount
+            account = await self._session.get(TelegramAccount, account_id)
+            if not account or account.owner_user_id != owner_user_id:
+                return {"total": 0, "items": []}
         items = await self._scheduled_task_repository.FindAllByAccountIdOrderByIdDesc(
             account_id=account_id,
             limit=limit,
@@ -354,10 +379,8 @@ class TaskService:
             "items": [self._to_scheduled_task_dict(item) for item in items],
         }
 
-    async def UpdateScheduledTask(self, task_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-        task = await self._scheduled_task_repository.FindById(task_id)
-        if task is None:
-            raise ValueError("定时消息不存在")
+    async def UpdateScheduledTask(self, task_id: int, payload: dict[str, Any], owner_user_id: int | None = None) -> dict[str, Any]:
+        task = await self._get_scheduled_task_or_raise(task_id, owner_user_id)
 
         message_content = await self._build_message_content(int(task.account_id), payload)
         task.cron_expr = str(payload["cron_expr"])
@@ -382,10 +405,8 @@ class TaskService:
 
         return self._to_scheduled_task_dict(task)
 
-    async def SetScheduledTaskActive(self, task_id: int, is_active: bool) -> dict[str, Any]:
-        task = await self._scheduled_task_repository.FindById(task_id)
-        if task is None:
-            raise ValueError("定时消息不存在")
+    async def SetScheduledTaskActive(self, task_id: int, is_active: bool, owner_user_id: int | None = None) -> dict[str, Any]:
+        task = await self._get_scheduled_task_or_raise(task_id, owner_user_id)
 
         task.is_active = is_active
         await self._session.commit()
@@ -403,8 +424,8 @@ class TaskService:
 
         return self._to_scheduled_task_dict(task)
 
-    async def SoftDeleteScheduledTask(self, task_id: int) -> dict[str, Any]:
-        task_status = await self.SetScheduledTaskActive(task_id=task_id, is_active=False)
+    async def SoftDeleteScheduledTask(self, task_id: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        task_status = await self.SetScheduledTaskActive(task_id=task_id, is_active=False, owner_user_id=owner_user_id)
         return {**task_status, "deleted": True}
 
     async def ReloadActiveTasksToScheduler(self) -> None:

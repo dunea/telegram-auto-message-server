@@ -27,11 +27,11 @@ class FileRecordRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:
+    async def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None, owner_user_id: int | None = None) -> list[FileRecord]:
         raise NotImplementedError
 
     @abstractmethod
-    async def CountByStatus(self, status: str | None = None) -> int:
+    async def CountByStatus(self, status: str | None = None, owner_user_id: int | None = None) -> int:
         raise NotImplementedError
 
     @abstractmethod
@@ -40,6 +40,10 @@ class FileRecordRepository(ABC):
 
     @abstractmethod
     async def DeleteById(self, file_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def ExistsByIdAndOwnerUserId(self, file_id: int, user_id: int) -> bool:
         raise NotImplementedError
 
 
@@ -67,16 +71,20 @@ class SqlAlchemyFileRecordRepository(BaseRepository[FileRecord], FileRecordRepos
         )
         return list((await self._session.scalars(stmt)).all())
 
-    async def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None) -> list[FileRecord]:
+    async def FindAllOrderByIdDesc(self, limit: int, offset: int, status: str | None = None, owner_user_id: int | None = None) -> list[FileRecord]:
         stmt = select(FileRecord).order_by(FileRecord.id.desc()).offset(offset).limit(limit)
         if status:
             stmt = stmt.where(FileRecord.status == status)
+        if owner_user_id is not None:
+            stmt = stmt.where(FileRecord.owner_user_id == owner_user_id)
         return list((await self._session.scalars(stmt)).all())
 
-    async def CountByStatus(self, status: str | None = None) -> int:
+    async def CountByStatus(self, status: str | None = None, owner_user_id: int | None = None) -> int:
         stmt = select(func.count(FileRecord.id))
         if status:
             stmt = stmt.where(FileRecord.status == status)
+        if owner_user_id is not None:
+            stmt = stmt.where(FileRecord.owner_user_id == owner_user_id)
         return int((await self._session.scalar(stmt)) or 0)
 
     async def UpdateStatusById(self, file_id: int, status: str) -> bool:
@@ -91,3 +99,10 @@ class SqlAlchemyFileRecordRepository(BaseRepository[FileRecord], FileRecordRepos
         file_record = await self._session.get(FileRecord, file_id)
         if file_record is not None:
             await self._session.delete(file_record)
+
+    async def ExistsByIdAndOwnerUserId(self, file_id: int, user_id: int) -> bool:
+        stmt = select(FileRecord.id).where(
+            FileRecord.id == file_id,
+            FileRecord.owner_user_id == user_id
+        )
+        return (await self._session.scalar(stmt)) is not None

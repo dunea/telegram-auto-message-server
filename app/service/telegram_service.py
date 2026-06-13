@@ -80,9 +80,11 @@ class TelegramService:
         self._message_send_attempt_repository = message_send_attempt_repository
         self._telegram_adapter = telegram_adapter
 
-    async def _get_account_or_raise(self, account_id: int) -> TelegramAccount:
+    async def _get_account_or_raise(self, account_id: int, owner_user_id: int | None = None) -> TelegramAccount:
         account = await self._account_repository.FindById(account_id)
         if account is None:
+            raise ValueError("账号不存在")
+        if owner_user_id is not None and account.owner_user_id != owner_user_id:
             raise ValueError("账号不存在")
         return account
 
@@ -168,7 +170,7 @@ class TelegramService:
 
     # ========== Accounts 路径（PR #7 新增） ==========
 
-    async def CreateAccount(self, phone_number: str, proxy_id: int | None, session_string: str | None) -> dict[str, Any]:
+    async def CreateAccount(self, phone_number: str, proxy_id: int | None, session_string: str | None, owner_user_id: int | None = None) -> dict[str, Any]:
         if await self._account_repository.ExistsByPhoneNumber(phone_number):
             raise ValueError("手机号已存在")
         account = TelegramAccount(
@@ -177,6 +179,7 @@ class TelegramService:
             proxy_id=proxy_id,
             is_active=True,
             is_online=False,
+            owner_user_id=owner_user_id,
         )
         await self._account_repository.Save(account)
         await self._session.commit()
@@ -187,8 +190,11 @@ class TelegramService:
             "is_online": bool(account.is_online),
         }
 
-    async def ListManagedAccounts(self) -> list[dict[str, Any]]:
-        accounts = await self._account_repository.FindAll()
+    async def ListManagedAccounts(self, owner_user_id: int | None = None) -> list[dict[str, Any]]:
+        if owner_user_id is not None:
+            accounts = await self._account_repository.FindAllByOwnerUserId(owner_user_id)
+        else:
+            accounts = await self._account_repository.FindAll()
         return [
             {
                 "account_id": int(account.id),
@@ -201,14 +207,17 @@ class TelegramService:
             for account in accounts
         ]
 
-    async def RequestPhoneLoginCode(self, phone_number: str, proxy_id: int | None = None) -> dict[str, Any]:
+    async def RequestPhoneLoginCode(self, phone_number: str, proxy_id: int | None = None, owner_user_id: int | None = None) -> dict[str, Any]:
         account = await self._account_repository.FindByPhoneNumber(phone_number)
         if account is None:
-            await self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string="")
+            await self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string="", owner_user_id=owner_user_id)
             account = await self._get_account_by_phone_or_raise(phone_number)
-        elif proxy_id is not None:
-            account.proxy_id = proxy_id
-            await self._session.flush()
+        else:
+            if owner_user_id is not None and account.owner_user_id != owner_user_id:
+                raise ValueError("手机号已被其他用户使用")
+            if proxy_id is not None:
+                account.proxy_id = proxy_id
+                await self._session.flush()
 
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
@@ -231,8 +240,8 @@ class TelegramService:
             "phone_code_hash": phone_code_hash,
         }
 
-    async def VerifyPhoneLoginCode(self, account_id: int, phone_code_hash: str, code: str) -> dict[str, Any]:
-        account = await self._get_account_or_raise(account_id)
+    async def VerifyPhoneLoginCode(self, account_id: int, phone_code_hash: str, code: str, owner_user_id: int | None = None) -> dict[str, Any]:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
         signed_in, need_password = await self._telegram_adapter.SignInWithCode(
@@ -268,8 +277,8 @@ class TelegramService:
             "message": "账号登录成功。",
         }
 
-    async def VerifyTwoFactorPassword(self, account_id: int, password: str) -> dict[str, Any]:
-        account = await self._get_account_or_raise(account_id)
+    async def VerifyTwoFactorPassword(self, account_id: int, password: str, owner_user_id: int | None = None) -> dict[str, Any]:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
         await self._telegram_adapter.SignInWithPassword(
@@ -290,12 +299,14 @@ class TelegramService:
             "message": "二级密码验证成功，账号已上线。",
         }
 
-    async def CreateAccountWithSessionLogin(self, phone_number: str, session_string: str, proxy_id: int | None = None) -> dict[str, Any]:
+    async def CreateAccountWithSessionLogin(self, phone_number: str, session_string: str, proxy_id: int | None = None, owner_user_id: int | None = None) -> dict[str, Any]:
         account = await self._account_repository.FindByPhoneNumber(phone_number)
         if account is None:
-            await self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string=session_string)
+            await self.CreateAccount(phone_number=phone_number, proxy_id=proxy_id, session_string=session_string, owner_user_id=owner_user_id)
             account = await self._get_account_by_phone_or_raise(phone_number)
         else:
+            if owner_user_id is not None and account.owner_user_id != owner_user_id:
+                raise ValueError("手机号已被其他用户使用")
             account.session_string = session_string
             if proxy_id is not None:
                 account.proxy_id = proxy_id
@@ -324,12 +335,13 @@ class TelegramService:
             "message": "账号通过 session 登录成功。",
         }
 
-    async def SetAccountActive(self, account_id: int, is_active: bool) -> dict[str, Any]:
-        updated = await self._account_repository.UpdateIsActiveById(account_id=account_id, is_active=is_active)
-        if not updated:
-            raise ValueError("账号不存在")
+    async def SetAccountActive(self, account_id: int, is_active: bool, owner_user_id: int | None = None) -> dict[str, Any]:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
+        account.is_active = is_active
+        if not is_active:
+            account.is_online = False
+        await self._session.flush()
         await self._session.commit()
-        account = await self._get_account_or_raise(account_id)
         return {
             "account_id": int(account.id),
             "phone_number": account.phone_number,
@@ -337,8 +349,8 @@ class TelegramService:
             "is_online": bool(account.is_online),
         }
 
-    async def SoftDeleteAccount(self, account_id: int) -> dict[str, Any]:
-        result = await self.SetAccountActive(account_id=account_id, is_active=False)
+    async def SoftDeleteAccount(self, account_id: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        result = await self.SetAccountActive(account_id=account_id, is_active=False, owner_user_id=owner_user_id)
         return {**result, "deleted": True}
 
     async def _refresh_account_online_profile(self, account: TelegramAccount) -> None:
@@ -365,13 +377,13 @@ class TelegramService:
         account.is_active = True
         await self._session.commit()
 
-    async def UpdateAccountSessionString(self, account_id: int, session_string: str) -> None:
-        account = await self._get_account_or_raise(account_id)
+    async def UpdateAccountSessionString(self, account_id: int, session_string: str, owner_user_id: int | None = None) -> None:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         account.session_string = session_string
         await self._session.commit()
 
-    async def EnsureAccountOnline(self, account_id: int) -> dict[str, Any]:
-        account = await self._get_account_or_raise(account_id)
+    async def EnsureAccountOnline(self, account_id: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
         is_authorized = await self._telegram_adapter.IsAuthorized(
@@ -389,8 +401,8 @@ class TelegramService:
             "is_active": bool(account.is_active),
         }
 
-    async def ListConversations(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
-        account = await self._get_account_or_raise(account_id)
+    async def ListConversations(self, account_id: int, limit: int = 50, owner_user_id: int | None = None) -> list[dict[str, Any]]:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
         return await self._telegram_adapter.ListDialogs(
@@ -402,8 +414,8 @@ class TelegramService:
             telegram_api_hash=api_hash,
         )
 
-    async def ListMessages(self, account_id: int, target_identifier: str, limit: int = 50) -> list[dict[str, Any]]:
-        account = await self._get_account_or_raise(account_id)
+    async def ListMessages(self, account_id: int, target_identifier: str, limit: int = 50, owner_user_id: int | None = None) -> list[dict[str, Any]]:
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
         messages = await self._telegram_adapter.ListMessages(
@@ -583,7 +595,8 @@ class TelegramService:
         await self._message_send_attempt_repository.Save(attempt)
         return attempt
 
-    async def ListSendRecords(self, account_id: int, limit: int = 50) -> list[dict[str, Any]]:
+    async def ListSendRecords(self, account_id: int, limit: int = 50, owner_user_id: int | None = None) -> list[dict[str, Any]]:
+        await self._get_account_or_raise(account_id, owner_user_id)
         records = await self._message_repository.FindAllByAccountIdAndDirectionOrderByIdDesc(
             account_id=account_id,
             direction=MessageDirection.OUT,
@@ -629,8 +642,9 @@ class TelegramService:
         message_content_id: int | None = None,
         task_execution_log_id: int | None = None,
         reply_to_message_id: int | None = None,
+        owner_user_id: int | None = None,
     ) -> dict[str, Any]:
-        account = await self._get_account_or_raise(account_id)
+        account = await self._get_account_or_raise(account_id, owner_user_id)
         proxy_dict = await self._get_proxy_dict_for_account(account)
         api_id, api_hash = self._get_api_credentials_for_account(account)
         conversation_id: int | None = int(target_identifier) if target_identifier.isdigit() else None

@@ -71,7 +71,13 @@ class AutoReplyService:
         scope_mode: str = "all",
         conversation_ids: list[int] | None = None,
         reply_messages: list[ReplyMessageCreate] | None = None,
+        owner_user_id: int | None = None,
     ) -> dict[str, Any]:
+        if owner_user_id is not None:
+            from app.models.account import TelegramAccount
+            account = await self._session.get(TelegramAccount, account_id)
+            if not account or account.owner_user_id != owner_user_id:
+                raise ValueError("账号不存在")
         rule = AutoReplyRule(
             account_id=account_id,
             trigger_keyword=trigger_keyword.strip(),
@@ -81,6 +87,7 @@ class AutoReplyService:
             keywords=keywords,
             scope_mode=scope_mode,
             conversation_ids=conversation_ids,
+            owner_user_id=owner_user_id,
         )
         await self._auto_reply_rule_repository.Save(rule)
         await self._session.commit()
@@ -104,10 +111,16 @@ class AutoReplyService:
             await self._session.commit()
         return self._to_rule_dict(rule)
 
-    async def GetRuleById(self, rule_id: int) -> dict[str, Any]:
+    async def _get_rule_or_raise(self, rule_id: int, owner_user_id: int | None = None) -> AutoReplyRule:
         rule = await self._auto_reply_rule_repository.FindById(rule_id)
         if rule is None:
             raise ValueError("回复消息不存在")
+        if owner_user_id is not None and rule.owner_user_id != owner_user_id:
+            raise ValueError("回复消息不存在")
+        return rule
+
+    async def GetRuleById(self, rule_id: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        rule = await self._get_rule_or_raise(rule_id, owner_user_id)
         return self._to_rule_dict(rule)
 
     async def UpdateRule(
@@ -120,23 +133,22 @@ class AutoReplyService:
         scope_mode: str | None = None,
         conversation_ids: list[int] | None = None,
         reply_messages: list[ReplyMessageCreate] | None = None,
+        owner_user_id: int | None = None,
     ) -> dict[str, Any]:
-        kwargs = {}
+        rule = await self._get_rule_or_raise(rule_id, owner_user_id)
         if trigger_keyword is not None:
-            kwargs["trigger_keyword"] = trigger_keyword.strip()
+            rule.trigger_keyword = trigger_keyword.strip()
         if reply_content is not None:
-            kwargs["reply_content"] = reply_content.strip()
+            rule.reply_content = reply_content.strip()
         if trigger_mode is not None:
-            kwargs["trigger_mode"] = trigger_mode
+            rule.trigger_mode = trigger_mode
         if keywords is not None:
-            kwargs["keywords"] = keywords
+            rule.keywords = keywords
         if scope_mode is not None:
-            kwargs["scope_mode"] = scope_mode
+            rule.scope_mode = scope_mode
         if conversation_ids is not None:
-            kwargs["conversation_ids"] = conversation_ids
-        rule = await self._auto_reply_rule_repository.UpdateById(rule_id=rule_id, **kwargs)
-        if rule is None:
-            raise ValueError("回复消息不存在")
+            rule.conversation_ids = conversation_ids
+        await self._session.flush()
         await self._session.commit()
         if reply_messages is not None:
             reply_repo = SqlAlchemyReplyMessageRepository(self._session)
@@ -159,40 +171,47 @@ class AutoReplyService:
             await self._session.commit()
         return self._to_rule_dict(rule)
 
-    async def SetRuleActive(self, rule_id: int, is_active: bool) -> dict[str, Any]:
-        updated = await self._auto_reply_rule_repository.UpdateIsActiveById(
-            rule_id=rule_id, is_active=is_active
-        )
-        if not updated:
-            raise ValueError("回复消息不存在")
+    async def SetRuleActive(self, rule_id: int, is_active: bool, owner_user_id: int | None = None) -> dict[str, Any]:
+        rule = await self._get_rule_or_raise(rule_id, owner_user_id)
+        rule.is_active = is_active
+        await self._session.flush()
         await self._session.commit()
-        return await self.GetRuleById(rule_id)
+        return self._to_rule_dict(rule)
 
-    async def SoftDeleteRule(self, rule_id: int) -> dict[str, Any]:
-        rule = await self.SetRuleActive(rule_id=rule_id, is_active=False)
+    async def SoftDeleteRule(self, rule_id: int, owner_user_id: int | None = None) -> dict[str, Any]:
+        rule = await self.SetRuleActive(rule_id=rule_id, is_active=False, owner_user_id=owner_user_id)
         return {**rule, "deleted": True}
 
     async def ListRules(
-        self, account_id: int | None = None, limit: int = 100, offset: int = 0
+        self, account_id: int | None = None, limit: int = 100, offset: int = 0, owner_user_id: int | None = None
     ) -> dict[str, Any]:
         if account_id is not None:
-            return await self.ListRulesByAccountId(account_id, limit, offset)
+            return await self.ListRulesByAccountId(account_id, limit, offset, owner_user_id)
         stmt = (
             select(AutoReplyRule)
             .order_by(AutoReplyRule.id.desc())
             .offset(offset)
             .limit(limit)
         )
+        count_stmt = select(func.count(AutoReplyRule.id))
+        if owner_user_id is not None:
+            stmt = stmt.where(AutoReplyRule.owner_user_id == owner_user_id)
+            count_stmt = count_stmt.where(AutoReplyRule.owner_user_id == owner_user_id)
         items = list((await self._session.scalars(stmt)).all())
-        total = int((await self._session.scalar(select(func.count(AutoReplyRule.id)))) or 0)
+        total = int((await self._session.scalar(count_stmt)) or 0)
         return {
             "total": total,
             "items": [self._to_rule_dict(item) for item in items],
         }
 
     async def ListRulesByAccountId(
-        self, account_id: int, limit: int, offset: int
+        self, account_id: int, limit: int, offset: int, owner_user_id: int | None = None
     ) -> dict[str, Any]:
+        if owner_user_id is not None:
+            from app.models.account import TelegramAccount
+            account = await self._session.get(TelegramAccount, account_id)
+            if not account or account.owner_user_id != owner_user_id:
+                return {"total": 0, "items": []}
         items = await self._auto_reply_rule_repository.FindAllByAccountIdOrderByIdDesc(
             account_id=account_id,
             limit=limit,

@@ -33,3 +33,7 @@ class FileRecord(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, comment="文件过期时间"
     )
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+    )
+

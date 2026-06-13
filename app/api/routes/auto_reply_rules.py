@@ -21,6 +21,7 @@ router = APIRouter(prefix="/auto-reply-rules", tags=["auto-reply-rules"], depend
 async def create_auto_reply_rule(
     payload: CreateAutoReplyRuleRequest,
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+    current_user = Depends(get_current_user),
 ) -> AutoReplyRuleResponse:
     """新增回复消息规则。"""
     with map_http_exceptions((ValueError, 400)):
@@ -33,6 +34,7 @@ async def create_auto_reply_rule(
             scope_mode=payload.scope_mode,
             conversation_ids=payload.conversation_ids,
             reply_messages=[ReplyMessageCreate(**rm) if isinstance(rm, dict) else rm for rm in (payload.reply_messages or [])],
+            owner_user_id=current_user.id,
         )
         return AutoReplyRuleResponse(**result)
 
@@ -43,9 +45,10 @@ async def list_auto_reply_rules(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+    current_user = Depends(get_current_user),
 ) -> AutoReplyRuleListResponse:
     """查询回复消息规则列表。"""
-    result = await auto_reply_service.ListRulesByAccountId(account_id=account_id, limit=limit, offset=offset)
+    result = await auto_reply_service.ListRulesByAccountId(account_id=account_id, limit=limit, offset=offset, owner_user_id=current_user.id)
     return AutoReplyRuleListResponse(**result)
 
 
@@ -53,10 +56,11 @@ async def list_auto_reply_rules(
 async def get_auto_reply_rule(
     rule_id: int,
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+    current_user = Depends(get_current_user),
 ) -> AutoReplyRuleResponse:
     """查询单个回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        return AutoReplyRuleResponse(**await auto_reply_service.GetRuleById(rule_id=rule_id))
+        return AutoReplyRuleResponse(**await auto_reply_service.GetRuleById(rule_id=rule_id, owner_user_id=current_user.id))
 
 
 @router.put("/{rule_id}", response_model=AutoReplyRuleResponse)
@@ -64,6 +68,7 @@ async def update_auto_reply_rule(
     rule_id: int,
     payload: UpdateAutoReplyRuleRequest,
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+    current_user = Depends(get_current_user),
 ) -> AutoReplyRuleResponse:
     """修改回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
@@ -76,6 +81,7 @@ async def update_auto_reply_rule(
             scope_mode=payload.scope_mode,
             conversation_ids=payload.conversation_ids,
             reply_messages=[ReplyMessageCreate(**rm) if isinstance(rm, dict) else rm for rm in (payload.reply_messages or [])],
+            owner_user_id=current_user.id,
         )
         return AutoReplyRuleResponse(**result)
 
@@ -85,10 +91,11 @@ async def update_auto_reply_rule_active(
     rule_id: int,
     payload: UpdateAutoReplyRuleActiveRequest,
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+    current_user = Depends(get_current_user),
 ) -> AutoReplyRuleResponse:
     """启用或停用回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        result = await auto_reply_service.SetRuleActive(rule_id=rule_id, is_active=payload.is_active)
+        result = await auto_reply_service.SetRuleActive(rule_id=rule_id, is_active=payload.is_active, owner_user_id=current_user.id)
         return AutoReplyRuleResponse(**result)
 
 
@@ -96,7 +103,8 @@ async def update_auto_reply_rule_active(
 async def delete_auto_reply_rule(
     rule_id: int,
     auto_reply_service: AutoReplyService = Depends(get_auto_reply_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """软删除回复消息规则。"""
     with map_http_exceptions((ValueError, 404)):
-        return await auto_reply_service.SoftDeleteRule(rule_id=rule_id)
+        return await auto_reply_service.SoftDeleteRule(rule_id=rule_id, owner_user_id=current_user.id)

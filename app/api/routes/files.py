@@ -15,11 +15,12 @@ router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(get_cu
 async def upload_file(
     file: UploadFile = File(...),
     file_service: FileService = Depends(get_file_service),
+    current_user = Depends(get_current_user),
 ) -> UploadFileResponse:
     """上传文件。"""
     with map_http_exceptions((ValueError, 400)):
         content = await file.read()
-        result = await file_service.UploadFile(filename=file.filename or "unnamed.bin", content=content)
+        result = await file_service.UploadFile(filename=file.filename or "unnamed.bin", content=content, owner_user_id=current_user.id)
         return UploadFileResponse(**result)
 
 
@@ -29,9 +30,10 @@ async def list_files(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     file_service: FileService = Depends(get_file_service),
+    current_user = Depends(get_current_user),
 ) -> FileListResponse:
     """查询文件列表。"""
-    result = await file_service.ListFiles(status=status, limit=limit, offset=offset)
+    result = await file_service.ListFiles(status=status, limit=limit, offset=offset, owner_user_id=current_user.id)
     return FileListResponse(**result)
 
 
@@ -39,10 +41,11 @@ async def list_files(
 async def get_file_item(
     file_id: int,
     file_service: FileService = Depends(get_file_service),
+    current_user = Depends(get_current_user),
 ) -> FileItemResponse:
     """查询单个文件信息。"""
     with map_http_exceptions((ValueError, 404)):
-        result = await file_service.GetFileById(file_id=file_id)
+        result = await file_service.GetFileById(file_id=file_id, owner_user_id=current_user.id)
         return FileItemResponse(**result)
 
 
@@ -50,10 +53,11 @@ async def get_file_item(
 async def download_file(
     file_id: int,
     file_service: FileService = Depends(get_file_service),
+    current_user = Depends(get_current_user),
 ) -> Response:
     """下载文件。"""
     with map_http_exceptions((ValueError, 404)):
-        content, filename, mime_type = await file_service.DownloadFile(file_id=file_id)
+        content, filename, mime_type = await file_service.DownloadFile(file_id=file_id, owner_user_id=current_user.id)
         return Response(
             content=content,
             media_type=mime_type,
@@ -65,7 +69,8 @@ async def download_file(
 async def delete_file(
     file_id: int,
     file_service: FileService = Depends(get_file_service),
+    current_user = Depends(get_current_user),
 ) -> dict:
     """软删除文件。"""
     with map_http_exceptions((ValueError, 404)):
-        return await file_service.SoftDeleteFile(file_id=file_id)
+        return await file_service.SoftDeleteFile(file_id=file_id, owner_user_id=current_user.id)
