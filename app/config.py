@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LOCAL_TEMP_DIR = PROJECT_ROOT / "storage" / "temp_files"
+DEFAULT_LOCAL_STORAGE_DIR = PROJECT_ROOT / "storage" / "persistent"
 
 
 class Settings(BaseSettings):
@@ -46,7 +47,7 @@ class Settings(BaseSettings):
     pool_round_degraded_timeout_fail_threshold: int = Field(default=3, ge=0)
     pool_shard_guard_enabled: bool = True
 
-    mysql_dsn: str = "mysql+pymysql://root:root@127.0.0.1:3306/telegram_auto_message"
+    mysql_dsn: str = "sqlite:///storage/data.db"
 
     telegram_api_id: int = 0
     telegram_api_hash: str = ""
@@ -63,6 +64,7 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = Field(default=30, ge=1)
 
     local_temp_dir: str = str(DEFAULT_LOCAL_TEMP_DIR)
+    local_storage_dir: str = str(DEFAULT_LOCAL_STORAGE_DIR)
     local_temp_max_bytes: int = 5 * 1024 * 1024 * 1024
     local_temp_retention_hours: int = Field(default=24 * 7, ge=1)
     local_cleanup_interval_minutes: int = Field(default=60, ge=1)
@@ -103,6 +105,12 @@ class Settings(BaseSettings):
         if not temp_dir.is_absolute():
             temp_dir = PROJECT_ROOT / temp_dir
         self.local_temp_dir = str(temp_dir.resolve())
+
+        # 持久存储目录始终按“项目根目录”解析
+        storage_dir = Path(self.local_storage_dir).expanduser()
+        if not storage_dir.is_absolute():
+            storage_dir = PROJECT_ROOT / storage_dir
+        self.local_storage_dir = str(storage_dir.resolve())
         return self
 
 

@@ -1,0 +1,24 @@
+# Version Control
+.git
+.github
+
+# Virtual Environment
+.venv
+venv
+ENV
+
+# Python Cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+
+# Local Storage and Configurations
+.env
+storage/*
+tests
+
+# Docker files
+Dockerfile
+.dockerignore

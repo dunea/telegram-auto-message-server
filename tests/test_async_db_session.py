@@ -44,6 +44,11 @@ def test_to_async_dsn_passthrough_already_async() -> None:
     assert _to_async_dsn(dsn) == dsn
 
 
+def test_to_async_dsn_converts_sqlite_dsn() -> None:
+    converted = _to_async_dsn("sqlite:///storage/data.db")
+    assert converted.startswith("sqlite+aiosqlite:///")
+
+
 # ---------- 工厂构造 ----------
 
 
@@ -61,6 +66,16 @@ def test_build_session_factory_rewrites_dsn_on_engine() -> None:
     engine = factory.kw["bind"]
     assert str(engine.url).startswith("mysql+aiomysql://")
     assert "test_db" in str(engine.url)
+    asyncio.run(engine.dispose())
+    _reset_engine_for_tests()
+
+
+def test_build_session_factory_with_sqlite_dsn() -> None:
+    _reset_engine_for_tests()
+    settings = _build_settings("sqlite:///storage/data.db")
+    factory = build_session_factory(settings)
+    engine = factory.kw["bind"]
+    assert str(engine.url).startswith("sqlite+aiosqlite:///")
     asyncio.run(engine.dispose())
     _reset_engine_for_tests()
 

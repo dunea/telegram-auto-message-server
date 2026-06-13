@@ -22,16 +22,21 @@ def _get_or_create_engine(settings: Settings):
     """创建或返回缓存的 async engine。"""
     global _engine
     if _engine is None:
-        pool_size = max(1, int(settings.db_pool_size))
-        max_overflow = max(0, int(settings.db_pool_max_overflow))
-        _engine = create_async_engine(
-            _to_async_dsn(settings.mysql_dsn),
-            pool_pre_ping=True,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_recycle=int(settings.db_pool_recycle_seconds),
-            pool_timeout=int(settings.db_pool_timeout_seconds),
-        )
+        dsn = _to_async_dsn(settings.mysql_dsn)
+        if "sqlite" in dsn:
+            # SQLite 专属 engine，无需 MySQL 连接池参数
+            _engine = create_async_engine(dsn)
+        else:
+            pool_size = max(1, int(settings.db_pool_size))
+            max_overflow = max(0, int(settings.db_pool_max_overflow))
+            _engine = create_async_engine(
+                dsn,
+                pool_pre_ping=True,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                pool_recycle=int(settings.db_pool_recycle_seconds),
+                pool_timeout=int(settings.db_pool_timeout_seconds),
+            )
     return _engine
 
 

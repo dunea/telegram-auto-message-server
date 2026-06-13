@@ -80,41 +80,67 @@ class FileService:
             local_path.unlink(missing_ok=True)
             raise ValueError("文件大小超出本地暂存上限")
 
-        expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=int(self._settings.local_temp_retention_hours))
-        file_record = FileRecord(
-            local_path=str(local_path),
-            s3_key=None,
-            s3_url=None,
-            file_size_bytes=int(size_bytes),
-            status="pending",
-            expires_at=expires_at,
-            owner_user_id=owner_user_id,
-        )
-        await self._file_record_repository.Save(file_record)
-        await self._session.flush()
+        # 判断 S3 是否启用
+        s3_enabled = self._s3_adapter._enabled()
 
-        object_key = f"uploads/{datetime.now(timezone.utc).replace(tzinfo=None).strftime('%Y%m%d')}/{file_token}_{safe_name}"
-        s3_url = ""
-        try:
-            s3_url = await self._s3_adapter.UploadFile(
+        if s3_enabled:
+            expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=int(self._settings.local_temp_retention_hours))
+            file_record = FileRecord(
                 local_path=str(local_path),
-                key=object_key,
+                s3_key=None,
+                s3_url=None,
+                file_size_bytes=int(size_bytes),
+                status="pending",
+                expires_at=expires_at,
+                owner_user_id=owner_user_id,
             )
-        except Exception:
-            logger.exception(
-                "S3 上传失败，文件保留 pending 状态以便后续补偿",
-                extra={"object_key": object_key, "local_path": str(local_path)},
-            )
+            await self._file_record_repository.Save(file_record)
+            await self._session.flush()
 
-        if s3_url:
-            file_record.s3_key = object_key
-            file_record.s3_url = s3_url
-            file_record.status = "uploaded"
+            object_key = f"uploads/{datetime.now(timezone.utc).replace(tzinfo=None).strftime('%Y%m%d')}/{file_token}_{safe_name}"
+            s3_url = ""
+            try:
+                s3_url = await self._s3_adapter.UploadFile(
+                    local_path=str(local_path),
+                    key=object_key,
+                )
+            except Exception:
+                logger.exception(
+                    "S3 上传失败，文件保留 pending 状态以便后续补偿",
+                    extra={"object_key": object_key, "local_path": str(local_path)},
+                )
+
+            if s3_url:
+                file_record.s3_key = object_key
+                file_record.s3_url = s3_url
+                file_record.status = "uploaded"
+            else:
+                logger.warning(
+                    "文件未上传到 S3，当前保持 pending 状态",
+                    extra={"object_key": object_key, "file_record_id": int(file_record.id or 0)},
+                )
         else:
-            logger.warning(
-                "文件未上传到 S3，当前保持 pending 状态",
-                extra={"object_key": object_key, "file_record_id": int(file_record.id or 0)},
+            # 本地持久化模式：将文件移动到本地持久化文件夹
+            persistent_dir = self.EnsureTempDir(self._settings.local_storage_dir)
+            persistent_path = persistent_dir / f"{file_token}_{safe_name}"
+            try:
+                import shutil
+                shutil.move(str(local_path), str(persistent_path))
+            except Exception:
+                import shutil
+                shutil.copy2(str(local_path), str(persistent_path))
+                local_path.unlink(missing_ok=True)
+
+            file_record = FileRecord(
+                local_path=str(persistent_path),
+                s3_key=None,
+                s3_url=None,
+                file_size_bytes=int(size_bytes),
+                status="uploaded",  # 本地持久存储文件即为就绪
+                expires_at=None,    # 设为 None 避免被定时清理
+                owner_user_id=owner_user_id,
             )
+            await self._file_record_repository.Save(file_record)
 
         await self._session.commit()
         result = self._to_item(file_record)
