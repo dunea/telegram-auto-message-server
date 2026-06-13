@@ -35,7 +35,7 @@ def format_iso_datetime(iso_str: str) -> str:
 
 async def fetch_github_data() -> tuple[dict, list, bool]:
     """
-    拉取 GitHub 仓库描述与最近 10 条 Commits 列表。
+    拉取 GitHub 仓库描述与最近 20 条 Commits 列表。
     优先读取 5 分钟内的内存缓存；如果接口报错/超时，只要有历史成功数据就进行缓存兜底。
     
     返回:
@@ -63,7 +63,7 @@ async def fetch_github_data() -> tuple[dict, list, bool]:
         headers["Authorization"] = f"token {github_token}"
         
     repo_url = "https://api.github.com/repos/dunea/telegram-auto-message-server"
-    commits_url = "https://api.github.com/repos/dunea/telegram-auto-message-server/commits?per_page=10"
+    commits_url = "https://api.github.com/repos/dunea/telegram-auto-message-server/commits?per_page=20"
     
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
@@ -73,7 +73,7 @@ async def fetch_github_data() -> tuple[dict, list, bool]:
                 raise RuntimeError(f"GitHub API 仓库接口返回异常状态码: {repo_resp.status_code}")
             repo_info = repo_resp.json()
             
-            # 2. 并步拉取最近 10 条 Commit 记录
+            # 2. 并步拉取最近 20 条 Commit 记录
             commits_resp = await client.get(commits_url, headers=headers)
             if commits_resp.status_code != 200:
                 raise RuntimeError(f"GitHub API Commits 接口返回异常状态码: {commits_resp.status_code}")
