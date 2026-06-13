@@ -63,7 +63,7 @@ async def request_phone_code(
                 </div>
                 <div>
                     <label for="code" class="block text-sm font-medium text-gray-700">请输入验证码</label>
-                    <input type="text" name="code" id="code" required placeholder="12345"
+                    <input type="text" name="code" id="code" required placeholder="请输入5位验证码"
                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
@@ -103,7 +103,7 @@ async def verify_phone_code(
                     </div>
                     <div>
                         <label for="password" class="block text-sm font-medium text-gray-700">二级密码</label>
-                        <input type="password" name="password" id="password" required
+                        <input type="password" name="password" id="password" required placeholder="请输入二级密码 (2FA)"
                                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     </div>
                     <div>

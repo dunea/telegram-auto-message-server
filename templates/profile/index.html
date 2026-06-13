@@ -87,7 +87,7 @@
             <form action="/web/profile/email" method="POST" class="space-y-4">
                 <div>
                     <label for="new_email" class="block text-sm font-medium text-gray-700">新邮箱地址</label>
-                    <input type="email" name="new_email" id="new_email" required value="{{ user.email }}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    <input type="email" name="new_email" id="new_email" required value="{{ user.email }}" placeholder="请输入新邮箱地址" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
                 </div>
                 <div class="flex justify-end">
                     <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">
@@ -113,15 +113,15 @@
                         <span class="text-xs text-indigo-500 font-normal">💡 演示账号默认密码为 123456</span>
                         {% endif %}
                     </label>
-                    <input type="password" name="old_password" id="old_password" required minlength="6" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    <input type="password" name="old_password" id="old_password" required minlength="6" placeholder="请输入当前的原密码" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
                 </div>
                 <div>
                     <label for="new_password" class="block text-sm font-medium text-gray-700">新密码 (6-128位)</label>
-                    <input type="password" name="new_password" id="new_password" required minlength="6" maxlength="128" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    <input type="password" name="new_password" id="new_password" required minlength="6" maxlength="128" placeholder="请输入新密码（至少 6 位）" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
                 </div>
                 <div>
                     <label for="confirm_password" class="block text-sm font-medium text-gray-700">确认新密码</label>
-                    <input type="password" id="confirm_password" required minlength="6" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
+                    <input type="password" id="confirm_password" required minlength="6" placeholder="请再次输入新密码以进行确认" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm" />
                     <span id="password_match_error" class="hidden text-xs text-red-500 mt-1 block">新密码与确认密码不匹配</span>
                 </div>
                 <div class="flex justify-end">
