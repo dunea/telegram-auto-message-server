@@ -47,7 +47,7 @@
                         </a>
                     </div>
                     {% if user_id or current_user %}
-                    <div class="hidden sm:-my-px sm:ml-8 sm:flex sm:space-x-8">
+                    <div class="hidden lg:-my-px lg:ml-8 lg:flex lg:space-x-8">
                         <a href="/web/dashboard" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/dashboard' or request.url.path.startswith('/web/dashboard/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             仪表盘
                         </a>
@@ -69,17 +69,17 @@
                     </div>
                     {% endif %}
                 </div>
-                <div class="hidden sm:flex sm:items-center">
+                <div class="hidden lg:flex lg:items-center">
                     {% if user_id or current_user %}
                     <div class="flex items-center gap-4">
                         <a href="/web/profile" class="text-sm text-gray-500 hover:text-indigo-600 font-medium truncate max-w-[150px] inline-block align-middle" title="{% if current_user and current_user.email %}{{ current_user.email }}{% else %}已登录{% endif %}">
                             {% if current_user and current_user.email %}
-                                {{ current_user.email }}
+                                {{ current_user.email.split('@')[0] }}
                             {% else %}
                                 已登录
                             {% endif %}
                         </a>
-                        <a href="/web/logout" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
+                        <a href="#" onclick="event.preventDefault(); if(confirm('确定要退出登录吗？')) { var f = document.createElement('form'); f.method='POST'; f.action='/web/logout'; document.body.appendChild(f); f.submit(); }" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
                             退出
                         </a>
                     </div>
@@ -91,7 +91,7 @@
                     {% endif %}
                 </div>
                 <!-- Mobile menu button -->
-                <div class="flex items-center sm:hidden">
+                <div class="flex items-center lg:hidden">
                     <button type="button" onclick="toggleMobileMenu()" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500" aria-controls="mobile-menu" aria-expanded="false">
                         <span class="sr-only">打开菜单</span>
                         <svg class="h-6 w-6" id="menu-icon-open" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,40 +106,40 @@
         </div>
 
         <!-- Mobile Menu, show/hide based on menu state. -->
-        <div class="hidden sm:hidden bg-white border-b border-gray-200" id="mobile-menu">
+        <div class="hidden lg:hidden bg-white border-b border-gray-200" id="mobile-menu">
             {% if user_id or current_user %}
             <div class="px-2 pt-2 pb-3 space-y-1">
-                <a href="/web/dashboard" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/dashboard' or request.url.path.startswith('/web/dashboard/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/dashboard" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/dashboard' or request.url.path.startswith('/web/dashboard/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     仪表盘
                 </a>
-                <a href="/web/accounts" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/accounts' or request.url.path.startswith('/web/accounts/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/accounts" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/accounts' or request.url.path.startswith('/web/accounts/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     账号管理
                 </a>
-                <a href="/web/auto-reply" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/auto-reply' or request.url.path.startswith('/web/auto-reply/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/auto-reply" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/auto-reply' or request.url.path.startswith('/web/auto-reply/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     自动回复
                 </a>
-                <a href="/web/scheduled" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/scheduled' or request.url.path.startswith('/web/scheduled/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/scheduled" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/scheduled' or request.url.path.startswith('/web/scheduled/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     定时消息
                 </a>
-                <a href="/web/messages" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/messages' or request.url.path.startswith('/web/messages/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/messages" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/messages' or request.url.path.startswith('/web/messages/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     群发历史
                 </a>
-                <a href="/web/files" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/files' or request.url.path.startswith('/web/files/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/files" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/files' or request.url.path.startswith('/web/files/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     文件管理
                 </a>
-                <a href="/web/profile" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/profile' or request.url.path.startswith('/web/profile/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-750{% endif %}">
+                <a href="/web/profile" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/profile' or request.url.path.startswith('/web/profile/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     个人资料
                 </a>
             </div>
             <div class="pt-4 pb-3 border-t border-gray-200 px-4 flex items-center justify-between">
                 <a href="/web/profile" class="text-sm font-medium text-gray-500 hover:text-indigo-600 truncate max-w-[180px] inline-block" title="{% if current_user and current_user.email %}{{ current_user.email }}{% else %}已登录{% endif %}">
                     {% if current_user and current_user.email %}
-                        {{ current_user.email }}
+                        {{ current_user.email.split('@')[0] }}
                     {% else %}
                         已登录
                     {% endif %}
                 </a>
-                <a href="/web/logout" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none transition duration-150">
+                <a href="#" onclick="event.preventDefault(); if(confirm('确定要退出登录吗？')) { var f = document.createElement('form'); f.method='POST'; f.action='/web/logout'; document.body.appendChild(f); f.submit(); }" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none transition duration-150">
                     退出
                 </a>
             </div>

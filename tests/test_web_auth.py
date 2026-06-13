@@ -125,7 +125,7 @@ def test_register_post_failure() -> None:
 def test_logout() -> None:
     client = _build_web_client()
     client.cookies.set("web_token", "fake-token")
-    resp = client.get("/web/logout", follow_redirects=False)
+    resp = client.post("/web/logout", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/web/login"
     # Cookie should be deleted/expired (either absent or empty/expired)

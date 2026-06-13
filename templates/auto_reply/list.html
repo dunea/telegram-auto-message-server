@@ -121,7 +121,7 @@
                             <button hx-post="/web/auto-reply/{{ rule.rule_id }}/toggle-active"
                                     hx-target="this"
                                     hx-swap="outerHTML"
-                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none whitespace-nowrap">
                                 {% if rule.is_active %}
                                 <span class="text-green-600 font-bold">● 启用中</span>
                                 {% else %}
@@ -130,15 +130,15 @@
                             </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div class="flex items-center justify-end gap-2">
-                                <a href="/web/auto-reply/{{ rule.rule_id }}/messages" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition" title="配置随机回复消息池">
+                            <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                                <a href="/web/auto-reply/{{ rule.rule_id }}/messages" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition whitespace-nowrap" title="配置随机回复消息池">
                                     消息池
                                 </a>
-                                <a href="/web/auto-reply/{{ rule.rule_id }}/edit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition">
+                                <a href="/web/auto-reply/{{ rule.rule_id }}/edit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition whitespace-nowrap">
                                     编辑
                                 </a>
                                 <form action="/web/auto-reply/{{ rule.rule_id }}/delete" method="POST" onsubmit="return confirm('确认删除该自动回复规则吗？')" class="inline">
-                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition">
+                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition whitespace-nowrap">
                                         删除
                                     </button>
                                 </form>
@@ -228,26 +228,26 @@
             </div>
 
             <!-- Toggle Status & Actions -->
-            <div class="flex justify-between items-center pt-2 border-t border-gray-100">
+            <div class="flex justify-between items-center pt-2 border-t border-gray-100 whitespace-nowrap">
                 <button hx-post="/web/auto-reply/{{ rule.rule_id }}/toggle-active"
                         hx-target="this"
                         hx-swap="outerHTML"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none whitespace-nowrap">
                     {% if rule.is_active %}
                     <span class="text-green-600 font-bold">● 启用中</span>
                     {% else %}
                     <span class="text-red-500 font-bold">○ 已禁用</span>
                     {% endif %}
                 </button>
-                <div class="flex gap-2">
-                    <a href="/web/auto-reply/{{ rule.rule_id }}/messages" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition">
+                <div class="flex gap-2 whitespace-nowrap">
+                    <a href="/web/auto-reply/{{ rule.rule_id }}/messages" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition whitespace-nowrap">
                         消息池
                     </a>
-                    <a href="/web/auto-reply/{{ rule.rule_id }}/edit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition">
+                    <a href="/web/auto-reply/{{ rule.rule_id }}/edit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition whitespace-nowrap">
                         编辑
                     </a>
                     <form action="/web/auto-reply/{{ rule.rule_id }}/delete" method="POST" onsubmit="return confirm('确认删除该自动回复规则吗？')" class="inline">
-                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition">
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 transition whitespace-nowrap">
                             删除
                         </button>
                     </form>

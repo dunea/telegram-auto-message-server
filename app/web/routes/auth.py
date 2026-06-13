@@ -85,7 +85,7 @@ async def register(
         )
 
 
-@router.get("/logout")
+@router.post("/logout")
 async def logout():
     response = RedirectResponse(url="/web/login", status_code=303)
     response.delete_cookie("web_token")

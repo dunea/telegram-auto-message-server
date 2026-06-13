@@ -104,20 +104,20 @@
                         </td>
                         <!-- 操作 -->
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div class="flex items-center justify-end gap-3">
+                            <div class="flex items-center justify-end gap-3 whitespace-nowrap">
                                 {% if file.status != 'deleted' %}
                                 <a href="/web/files/{{ file.id }}/download" 
-                                   class="text-indigo-600 hover:text-indigo-900 flex items-center bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition">
+                                   class="text-indigo-600 hover:text-indigo-900 flex items-center bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition whitespace-nowrap">
                                     下载
                                 </a>
-                                <form action="/web/files/{{ file.id }}/delete" method="post" onsubmit="return confirm('确定要软删除并清理该文件吗？');">
+                                <form action="/web/files/{{ file.id }}/delete" method="post" onsubmit="return confirm('确定要软删除并清理该文件吗？');" class="inline whitespace-nowrap">
                                     <button type="submit" 
-                                            class="text-red-600 hover:text-red-900 flex items-center bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition">
+                                            class="text-red-600 hover:text-red-900 flex items-center bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition whitespace-nowrap">
                                         软删除
                                     </button>
                                 </form>
                                 {% else %}
-                                <span class="text-gray-400 italic text-xs">无可用操作</span>
+                                <span class="text-gray-400 italic text-xs whitespace-nowrap">无可用操作</span>
                                 {% endif %}
                             </div>
                         </td>
@@ -186,20 +186,20 @@
                         <span class="text-gray-500 font-medium">过期时间:</span>
                         <span class="font-mono text-gray-700 ml-1">{{ file.expires_at.strftime('%Y-%m-%d %H:%M:%S') if file.expires_at else '无' }}</span>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 whitespace-nowrap">
                         {% if file.status != 'deleted' %}
                         <a href="/web/files/{{ file.id }}/download" 
-                           class="text-indigo-650 hover:text-indigo-900 flex items-center bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition text-xs font-medium">
+                           class="text-indigo-650 hover:text-indigo-900 flex items-center bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition text-xs font-medium whitespace-nowrap">
                             下载
                         </a>
-                        <form action="/web/files/{{ file.id }}/delete" method="post" onsubmit="return confirm('确定要软删除并清理该文件吗？');" class="inline">
+                        <form action="/web/files/{{ file.id }}/delete" method="post" onsubmit="return confirm('确定要软删除并清理该文件吗？');" class="inline whitespace-nowrap">
                             <button type="submit" 
-                                    class="text-red-650 hover:text-red-900 flex items-center bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition text-xs font-medium">
+                                    class="text-red-650 hover:text-red-900 flex items-center bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded transition text-xs font-medium whitespace-nowrap">
                                 删除
                             </button>
                         </form>
                         {% else %}
-                        <span class="text-gray-400 italic text-xs">无可用操作</span>
+                        <span class="text-gray-400 italic text-xs whitespace-nowrap">无可用操作</span>
                         {% endif %}
                     </div>
                 </div>
