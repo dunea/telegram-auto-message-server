@@ -19,7 +19,12 @@ class FileRecordRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllByStatus(self, status: str) -> list[FileRecord]:
+    async def FindAllByStatus(
+        self,
+        status: str,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[FileRecord]:
         raise NotImplementedError
 
     @abstractmethod
@@ -54,8 +59,17 @@ class SqlAlchemyFileRecordRepository(BaseRepository[FileRecord], FileRecordRepos
     async def FindById(self, file_id: int) -> FileRecord | None:
         return await self._session.get(FileRecord, file_id)
 
-    async def FindAllByStatus(self, status: str) -> list[FileRecord]:
+    async def FindAllByStatus(
+        self,
+        status: str,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[FileRecord]:
         stmt = select(FileRecord).where(FileRecord.status == status)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
     async def FindAllByStatusAndExpiresAtBefore(self, status: str, expires_before: datetime, limit: int) -> list[FileRecord]:

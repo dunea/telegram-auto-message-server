@@ -33,7 +33,7 @@ class TelegramAccount(Base, TimestampMixin):
     )
     # 禁用后该账号不参与调度与巡检。
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False, comment="账号启用状态"
+        Boolean, default=True, index=True, nullable=False, comment="账号启用状态"
     )
     proxy_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="关联代理 ID"
@@ -45,7 +45,7 @@ class TelegramAccount(Base, TimestampMixin):
         String(255), nullable=True, default=None, comment="账号自定义 Telegram API Hash"
     )
     owner_user_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+        BigInteger, index=True, nullable=True, default=None, comment="归属用户 ID"
     )
 
 

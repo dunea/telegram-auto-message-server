@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session
@@ -25,27 +25,45 @@ async def dashboard(
     # 2. PR #11 收尾阶段改用 get_db_session 注入 AsyncSession 时，
     #    本文件所有 db_session.scalar/scalars/get 改 await db_session.xxx 即可。
     # 统计账号
-    total_accounts = await db_session.scalar(select(func.count(TelegramAccount.id))) or 0
-    active_accounts = await db_session.scalar(select(func.count(TelegramAccount.id)).where(TelegramAccount.is_active == True)) or 0
-    online_accounts = await db_session.scalar(select(func.count(TelegramAccount.id)).where(TelegramAccount.is_online == True)) or 0
+    acc_stmt = select(
+        func.count(TelegramAccount.id),
+        func.sum(case((TelegramAccount.is_active == True, 1), else_=0)),
+        func.sum(case((TelegramAccount.is_online == True, 1), else_=0)),
+    )
+    acc_res = (await db_session.execute(acc_stmt)).all()[0]
+    total_accounts = acc_res[0] or 0
+    active_accounts = int(acc_res[1] or 0)
+    online_accounts = int(acc_res[2] or 0)
 
     # 统计规则
-    total_rules = await db_session.scalar(select(func.count(AutoReplyRule.id))) or 0
-    active_rules = await db_session.scalar(select(func.count(AutoReplyRule.id)).where(AutoReplyRule.is_active == True)) or 0
+    rule_stmt = select(
+        func.count(AutoReplyRule.id),
+        func.sum(case((AutoReplyRule.is_active == True, 1), else_=0)),
+    )
+    rule_res = (await db_session.execute(rule_stmt)).all()[0]
+    total_rules = rule_res[0] or 0
+    active_rules = int(rule_res[1] or 0)
 
     # 统计定时任务
-    total_tasks = await db_session.scalar(select(func.count(ScheduledMessageTask.id))) or 0
-    active_tasks = await db_session.scalar(select(func.count(ScheduledMessageTask.id)).where(ScheduledMessageTask.is_active == True)) or 0
+    task_stmt = select(
+        func.count(ScheduledMessageTask.id),
+        func.sum(case((ScheduledMessageTask.is_active == True, 1), else_=0)),
+    )
+    task_res = (await db_session.execute(task_stmt)).all()[0]
+    total_tasks = task_res[0] or 0
+    active_tasks = int(task_res[1] or 0)
 
     # 统计24小时出站消息
     last_24h = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
-    out_msg_stmt = select(func.count(TelegramMessage.id)).where(
-        TelegramMessage.direction == "out",
-        TelegramMessage.created_at >= last_24h,
+    msg_stmt = select(
+        func.sum(case(((TelegramMessage.status == "sent") & (TelegramMessage.direction == "out") & (TelegramMessage.created_at >= last_24h), 1), else_=0)),
+        func.sum(case(((TelegramMessage.status == "failed") & (TelegramMessage.direction == "out") & (TelegramMessage.created_at >= last_24h), 1), else_=0)),
+        func.sum(case(((TelegramMessage.status == "pending") & (TelegramMessage.direction == "out") & (TelegramMessage.created_at >= last_24h), 1), else_=0)),
     )
-    sent_24h = await db_session.scalar(out_msg_stmt.where(TelegramMessage.status == "sent")) or 0
-    failed_24h = await db_session.scalar(out_msg_stmt.where(TelegramMessage.status == "failed")) or 0
-    pending_24h = await db_session.scalar(out_msg_stmt.where(TelegramMessage.status == "pending")) or 0
+    msg_res = (await db_session.execute(msg_stmt)).all()[0]
+    sent_24h = int(msg_res[0] or 0)
+    failed_24h = int(msg_res[1] or 0)
+    pending_24h = int(msg_res[2] or 0)
 
     return templates.TemplateResponse(request, "dashboard/index.html", {
         "user_id": user_id,

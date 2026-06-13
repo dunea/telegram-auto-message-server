@@ -54,9 +54,36 @@ class TelegramService:
 
     @classmethod
     def _get_account_lock(cls, account_id: int) -> asyncio.Lock:
+        import random
+        # 1% 概率进行定期清理
+        if random.random() < 0.01:
+            cls._cleanup_inactive_keys()
+
         if account_id not in cls._account_locks:
             cls._account_locks[account_id] = asyncio.Lock()
         return cls._account_locks[account_id]
+
+    @classmethod
+    def _cleanup_inactive_keys(cls) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        now = loop.time()
+        # 清理 1 小时未发送消息且未被锁定的账号锁
+        inactive_cutoff = now - 3600.0
+
+        to_remove = []
+        for account_id, lock in list(cls._account_locks.items()):
+            if not lock.locked():
+                last_sent = cls._last_sent_times.get(account_id, 0.0)
+                if last_sent < inactive_cutoff:
+                    to_remove.append(account_id)
+
+        for account_id in to_remove:
+            cls._account_locks.pop(account_id, None)
+            cls._last_sent_times.pop(account_id, None)
 
     def __init__(
         self,
@@ -714,7 +741,7 @@ class TelegramService:
         account_lock = self._get_account_lock(int(account.id))
         async with account_lock:
             last_sent = self._last_sent_times.get(int(account.id), 0.0)
-            now = asyncio.get_event_loop().time()
+            now = asyncio.get_running_loop().time()
             elapsed = now - last_sent
             cooldown = float(self._settings.pool_message_cooldown_seconds)
             if elapsed < cooldown:
@@ -839,7 +866,7 @@ class TelegramService:
                     if finished and started:
                         attempt.duration_ms = int((finished - started).total_seconds() * 1000)
             finally:
-                self._last_sent_times[int(account.id)] = asyncio.get_event_loop().time()
+                self._last_sent_times[int(account.id)] = asyncio.get_running_loop().time()
 
         if failure_error:
             message_record.status = MessageSendStatus.FAILED

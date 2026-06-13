@@ -26,7 +26,13 @@ class AutoReplyRuleRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
+    async def FindAllByAccountIdAndIsActive(
+        self,
+        account_id: int,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AutoReplyRule]:
         raise NotImplementedError
 
     @abstractmethod
@@ -62,7 +68,12 @@ class ScheduledMessageTaskRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllByIsActive(self, is_active: bool) -> list[ScheduledMessageTask]:
+    async def FindAllByIsActive(
+        self,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[ScheduledMessageTask]:
         raise NotImplementedError
 
     @abstractmethod
@@ -99,7 +110,12 @@ class RuleMessageTaskRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllByIsActive(self, is_active: bool) -> list[RuleMessageTask]:
+    async def FindAllByIsActive(
+        self,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[RuleMessageTask]:
         raise NotImplementedError
 
 
@@ -132,12 +148,22 @@ class SqlAlchemyAutoReplyRuleRepository(BaseRepository[AutoReplyRule], AutoReply
         stmt = select(func.count(AutoReplyRule.id)).where(AutoReplyRule.account_id == account_id)
         return int((await self._session.scalar(stmt)) or 0)
 
-    async def FindAllByAccountIdAndIsActive(self, account_id: int, is_active: bool) -> list[AutoReplyRule]:
+    async def FindAllByAccountIdAndIsActive(
+        self,
+        account_id: int,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[AutoReplyRule]:
         from sqlalchemy.orm import selectinload
         stmt = select(AutoReplyRule).where(
             AutoReplyRule.account_id == account_id,
             AutoReplyRule.is_active == is_active,
         ).options(selectinload(AutoReplyRule.reply_messages))
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
     async def UpdateById(
@@ -191,8 +217,17 @@ class SqlAlchemyScheduledMessageTaskRepository(BaseRepository[ScheduledMessageTa
     async def FindById(self, task_id: int) -> ScheduledMessageTask | None:
         return await self._session.get(ScheduledMessageTask, task_id)
 
-    async def FindAllByIsActive(self, is_active: bool) -> list[ScheduledMessageTask]:
+    async def FindAllByIsActive(
+        self,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[ScheduledMessageTask]:
         stmt = select(ScheduledMessageTask).where(ScheduledMessageTask.is_active == is_active)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
     async def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int, offset: int) -> list[ScheduledMessageTask]:
@@ -253,8 +288,17 @@ class SqlAlchemyRuleMessageTaskRepository(BaseRepository[RuleMessageTask], RuleM
     async def FindById(self, task_id: int) -> RuleMessageTask | None:
         return await self._session.get(RuleMessageTask, task_id)
 
-    async def FindAllByIsActive(self, is_active: bool) -> list[RuleMessageTask]:
+    async def FindAllByIsActive(
+        self,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[RuleMessageTask]:
         stmt = select(RuleMessageTask).where(RuleMessageTask.is_active == is_active)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
 

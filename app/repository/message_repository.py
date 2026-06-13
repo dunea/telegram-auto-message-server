@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from sqlalchemy import desc, delete, select
+from sqlalchemy import desc, delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.message import (
@@ -20,7 +20,12 @@ class TelegramMessageRepository(ABC):
     """
 
     @abstractmethod
-    async def FindAllByAccountId(self, account_id: int) -> list[TelegramMessage]:
+    async def FindAllByAccountId(
+        self,
+        account_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramMessage]:
         raise NotImplementedError
 
     @abstractmethod
@@ -133,13 +138,22 @@ class SqlAlchemyTelegramMessageRepository(BaseRepository[TelegramMessage], Teleg
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session=session, model_type=TelegramMessage)
 
-    async def FindAllByAccountId(self, account_id: int) -> list[TelegramMessage]:
+    async def FindAllByAccountId(
+        self,
+        account_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramMessage]:
         stmt = select(TelegramMessage).where(TelegramMessage.account_id == account_id)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
     async def CountByStatus(self, status: str) -> int:
-        stmt = select(TelegramMessage).where(TelegramMessage.status == status)
-        return len(list((await self._session.scalars(stmt)).all()))
+        stmt = select(func.count(TelegramMessage.id)).where(TelegramMessage.status == status)
+        return await self._session.scalar(stmt) or 0
 
     async def FindAllByAccountIdOrderByIdDesc(self, account_id: int, limit: int) -> list[TelegramMessage]:
         stmt = (

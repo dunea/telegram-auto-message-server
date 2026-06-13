@@ -20,7 +20,7 @@ class ScheduledMessageTask(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     account_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="执行账号 ID"
+        BigInteger, nullable=False, index=True, comment="执行账号 ID"
     )
     message_content_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联消息内容 ID")
     # 约定使用 5 或 6 段 Cron 表达式。
@@ -33,7 +33,7 @@ class ScheduledMessageTask(Base, TimestampMixin):
     message_template: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, comment="兼容旧版的文本模板")
     # 禁用后调度器不会装载该任务。
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, comment="任务启用状态"
+        Boolean, nullable=False, index=True, default=True, comment="任务启用状态"
     )
     scope_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="all", comment="会话范围: all|specific"
@@ -45,7 +45,7 @@ class ScheduledMessageTask(Base, TimestampMixin):
         JSON, nullable=True, comment="关联消息内容ID列表(JSON数组)"
     )
     owner_user_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+        BigInteger, index=True, nullable=True, default=None, comment="归属用户 ID"
     )
 
 
@@ -58,7 +58,7 @@ class RuleMessageTask(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     account_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="执行账号 ID"
+        BigInteger, nullable=False, index=True, comment="执行账号 ID"
     )
     message_content_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联消息内容 ID")
     trigger_type: Mapped[str] = mapped_column(
@@ -73,10 +73,10 @@ class RuleMessageTask(Base, TimestampMixin):
     )
     # 禁用后规则不参与匹配。
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, comment="规则启用状态"
+        Boolean, nullable=False, index=True, default=True, comment="规则启用状态"
     )
     owner_user_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+        BigInteger, index=True, nullable=True, default=None, comment="归属用户 ID"
     )
 
 
@@ -89,7 +89,7 @@ class AutoReplyRule(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     account_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="所属账号 ID"
+        BigInteger, nullable=False, index=True, comment="所属账号 ID"
     )
     trigger_keyword: Mapped[str] = mapped_column(
         String(255), nullable=False, comment="触发关键词"
@@ -113,7 +113,7 @@ class AutoReplyRule(Base, TimestampMixin):
         JSON, nullable=True, comment="指定会话ID列表(JSON数组)"
     )
     owner_user_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+        BigInteger, index=True, nullable=True, default=None, comment="归属用户 ID"
     )
 
     reply_messages: Mapped[list["ReplyMessage"]] = relationship(
@@ -144,8 +144,8 @@ class TaskExecutionLog(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="主键 ID")
     task_type: Mapped[str] = mapped_column(String(16), nullable=False, comment="任务类型（scheduled/rule）")
-    task_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="任务 ID")
-    account_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="执行账号 ID")
+    task_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True, comment="任务 ID")
+    account_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True, comment="执行账号 ID")
     message_content_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联消息内容 ID")
     send_log_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联发送日志 ID")
     status: Mapped[TaskExecutionStatus] = mapped_column(

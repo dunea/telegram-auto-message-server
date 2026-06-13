@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, String
+from sqlalchemy import BigInteger, DateTime, String, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -10,6 +10,9 @@ class FileRecord(Base, TimestampMixin):
     """文件生命周期记录模型，用于管理本地临时文件与 S3 上传状态。"""
 
     __tablename__ = "file_record"
+    __table_args__ = (
+        Index("idx_file_record_status_expires", "status", "expires_at"),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
@@ -34,6 +37,6 @@ class FileRecord(Base, TimestampMixin):
         DateTime, nullable=True, comment="文件过期时间"
     )
     owner_user_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, default=None, comment="归属用户 ID"
+        BigInteger, index=True, nullable=True, default=None, comment="归属用户 ID"
     )
 

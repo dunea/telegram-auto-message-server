@@ -1,10 +1,14 @@
 import importlib
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine
 
 from app.config import Settings
+
+
+logger = logging.getLogger("app.telegram_adapter")
 
 
 class TelegramAdapter:
@@ -28,7 +32,7 @@ class TelegramAdapter:
             "event": event,
             **fields,
         }
-        print(json.dumps(payload, ensure_ascii=False))
+        logger.info(json.dumps(payload, ensure_ascii=False))
 
     def _should_log_cache_stats(self) -> bool:
         interval = max(1, int(self._settings.pool_client_cache_stats_interval))
@@ -61,8 +65,8 @@ class TelegramAdapter:
         try:
             if await self._is_client_connected(client):
                 await self._call_with_timeout(client.disconnect())
-        except Exception:
-            return
+        except Exception as e:
+            logger.error(f"Disconnect client failed for account {account_id}: {e}")
 
     async def _recycle_idle_client_if_needed(self, account_id: int) -> None:
         cached = self._client_cache.get(account_id)
@@ -197,7 +201,7 @@ class TelegramAdapter:
                     try:
                         await callback(account_id, event)
                     except Exception as e:
-                        print(f"Error in new_message_callback for account {account_id}: {e}")
+                        logger.error(f"Error in new_message_callback for account {account_id}: {e}")
 
                 client.add_event_handler(_message_handler, telethon_events.NewMessage(incoming=True))
 

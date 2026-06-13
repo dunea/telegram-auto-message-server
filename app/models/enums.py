@@ -65,6 +65,7 @@ class ErrorClass(StrEnum):
     TIMEOUT = "timeout"
     AUTH = "auth"
     NETWORK = "network"
+    FLOOD = "flood"
     UNKNOWN = "unknown"
 
 

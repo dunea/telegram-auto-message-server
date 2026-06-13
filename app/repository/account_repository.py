@@ -25,11 +25,20 @@ class TelegramAccountRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllByIsActive(self, is_active: bool) -> list[TelegramAccount]:
+    async def FindAllByIsActive(
+        self,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramAccount]:
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAll(self) -> list[TelegramAccount]:
+    async def FindAll(
+        self,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramAccount]:
         raise NotImplementedError
 
     @abstractmethod
@@ -41,7 +50,12 @@ class TelegramAccountRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def FindAllByOwnerUserId(self, user_id: int) -> list[TelegramAccount]:
+    async def FindAllByOwnerUserId(
+        self,
+        user_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramAccount]:
         raise NotImplementedError
 
     @abstractmethod
@@ -64,12 +78,29 @@ class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], Teleg
         stmt = select(TelegramAccount.id).where(TelegramAccount.phone_number == phone_number)
         return (await self._session.scalar(stmt)) is not None
 
-    async def FindAllByIsActive(self, is_active: bool) -> list[TelegramAccount]:
+    async def FindAllByIsActive(
+        self,
+        is_active: bool,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramAccount]:
         stmt = select(TelegramAccount).where(TelegramAccount.is_active == is_active)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
-    async def FindAll(self) -> list[TelegramAccount]:
+    async def FindAll(
+        self,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramAccount]:
         stmt = select(TelegramAccount).order_by(TelegramAccount.id.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
     async def UpdateIsActiveById(self, account_id: int, is_active: bool) -> bool:
@@ -90,8 +121,17 @@ class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], Teleg
         await self._session.flush()
         return True
 
-    async def FindAllByOwnerUserId(self, user_id: int) -> list[TelegramAccount]:
+    async def FindAllByOwnerUserId(
+        self,
+        user_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[TelegramAccount]:
         stmt = select(TelegramAccount).where(TelegramAccount.owner_user_id == user_id).order_by(TelegramAccount.id.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         return list((await self._session.scalars(stmt)).all())
 
     async def ExistsByIdAndOwnerUserId(self, account_id: int, user_id: int) -> bool:

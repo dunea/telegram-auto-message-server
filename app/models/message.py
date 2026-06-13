@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, String, Text
+from sqlalchemy import BigInteger, DateTime, String, Text, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -24,7 +24,7 @@ class MessageContent(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     account_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="所属账号 ID"
+        BigInteger, nullable=False, index=True, comment="所属账号 ID"
     )
     content_type: Mapped[MessageContentType] = mapped_column(
         String(16),
@@ -70,7 +70,7 @@ class MessageContentMedia(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     message_content_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="关联消息模板 ID"
+        BigInteger, nullable=False, index=True, comment="关联消息模板 ID"
     )
     media_type: Mapped[MessageMediaType] = mapped_column(
         String(32),
@@ -96,6 +96,26 @@ class TelegramMessage(Base, TimestampMixin):
     """Telegram 会话完整消息记录（入站 + 出站）。"""
 
     __tablename__ = "telegram_message"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "conversation_peer",
+            "telegram_message_id",
+            name="uq_telegram_message_account_peer_msg_id",
+        ),
+        Index(
+            "idx_telegram_message_account_direction_id",
+            "account_id",
+            "direction",
+            "id",
+        ),
+        Index(
+            "idx_telegram_message_dir_created_status",
+            "direction",
+            "created_at",
+            "status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
@@ -166,6 +186,7 @@ class TelegramMessage(Base, TimestampMixin):
     status: Mapped[MessageSendStatus] = mapped_column(
         String(32),
         nullable=False,
+        index=True,
         default=MessageSendStatus.PENDING,
         comment="消息状态（pending/sent/failed）",
     )
@@ -206,7 +227,7 @@ class TelegramMessageMedia(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     telegram_message_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="关联会话消息 ID"
+        BigInteger, nullable=False, index=True, comment="关联会话消息 ID"
     )
     grouped_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Telegram 消息组 ID"
@@ -243,7 +264,7 @@ class TelegramMessageSendAttempt(Base, TimestampMixin):
         BigInteger, primary_key=True, autoincrement=True, comment="主键 ID"
     )
     telegram_message_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="关联会话消息 ID"
+        BigInteger, nullable=False, index=True, comment="关联会话消息 ID"
     )
     attempt_no: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=1, comment="尝试序号，从 1 开始"

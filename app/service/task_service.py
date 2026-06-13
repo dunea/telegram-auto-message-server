@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 import json
+import logging
 import random
 from typing import Any
+
+logger = logging.getLogger("app.task_service")
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.adapter.telegram_adapter import TelegramAdapter
@@ -85,7 +88,7 @@ class TaskService:
             "total_shards": max(1, int(self._settings.pool_total_shards)),
             **fields,
         }
-        print(json.dumps(payload, ensure_ascii=False))
+        logger.info(json.dumps(payload, ensure_ascii=False))
 
     def _belongs_to_current_shard(self, stable_id: int) -> bool:
         total_shards = max(1, int(self._settings.pool_total_shards))
@@ -264,7 +267,7 @@ class TaskService:
                 args=[int(task.id)],
             )
 
-        print(
+        logger.info(
             f"[task.register] type=scheduled task_id={int(task.id)} "
             f"assigned_to_current_pool={assigned_to_current_pool} "
             f"shard={self._settings.pool_shard_index}/{self._settings.pool_total_shards}"
@@ -319,7 +322,7 @@ class TaskService:
                 args=[int(task.id)],
             )
 
-        print(
+        logger.info(
             f"[task.register] type=rule task_id={int(task.id)} "
             f"assigned_to_current_pool={assigned_to_current_pool} "
             f"shard={self._settings.pool_shard_index}/{self._settings.pool_total_shards}"
@@ -496,7 +499,7 @@ class TaskService:
         """应用启动后重载激活任务。"""
         # 清理已有的定时与规则任务，避免动态调整分片时发生残留冲突
         for job_id in self._scheduler.GetJobIds():
-            if job_id.startswith("task:scheduled:") or job_id.startswith("task:rule:"):
+            if job_id.startswith("scheduled_task_") or job_id.startswith("rule_task_"):
                 self._scheduler.RemoveJob(job_id)
 
         scheduled_tasks = await self._scheduled_task_repository.FindAllByIsActive(True)
@@ -532,7 +535,7 @@ class TaskService:
             )
             loaded_rule += 1
 
-        print(
+        logger.info(
             f"[task.reload] scheduled={loaded_scheduled} rule={loaded_rule} "
             f"shard={self._settings.pool_shard_index}/{self._settings.pool_total_shards}"
         )
@@ -540,87 +543,98 @@ class TaskService:
     async def ExecuteScheduledTaskById(self, task_id: int) -> None:
         """执行单个定时任务。"""
         async with self._session_factory() as session:
-            scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
-            account_repository = SqlAlchemyTelegramAccountRepository(session)
-            message_content_repository = SqlAlchemyMessageContentRepository(session)
-            message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
-            message_repository = SqlAlchemyTelegramMessageRepository(session)
-            message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
-            message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
-            task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(session)
-            telegram_service = TelegramService(
-                settings=self._settings,
-                session=session,
-                account_repository=account_repository,
-                message_content_repository=message_content_repository,
-                message_content_media_repository=message_content_media_repository,
-                message_repository=message_repository,
-                message_media_repository=message_media_repository,
-                message_send_attempt_repository=message_send_attempt_repository,
-                telegram_adapter=self._telegram_adapter,
-            )
+            try:
+                scheduled_task_repository = SqlAlchemyScheduledMessageTaskRepository(session)
+                account_repository = SqlAlchemyTelegramAccountRepository(session)
+                message_content_repository = SqlAlchemyMessageContentRepository(session)
+                message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
+                message_repository = SqlAlchemyTelegramMessageRepository(session)
+                message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
+                message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
+                task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(session)
+                telegram_service = TelegramService(
+                    settings=self._settings,
+                    session=session,
+                    account_repository=account_repository,
+                    message_content_repository=message_content_repository,
+                    message_content_media_repository=message_content_media_repository,
+                    message_repository=message_repository,
+                    message_media_repository=message_media_repository,
+                    message_send_attempt_repository=message_send_attempt_repository,
+                    telegram_adapter=self._telegram_adapter,
+                )
 
-            task = await scheduled_task_repository.FindById(task_id)
-            if task is None or not task.is_active:
-                return
+                task = await scheduled_task_repository.FindById(task_id)
+                if task is None or not task.is_active:
+                    return
 
-            if not self._belongs_to_current_shard(int(task.account_id)):
+                if not self._belongs_to_current_shard(int(task.account_id)):
+                    self._log_task_event(
+                        "task_skip_shard",
+                        task_type="scheduled",
+                        task_id=task_id,
+                    )
+                    return
+
+                message_content_id = task.message_content_id
+                if task.message_ids and isinstance(task.message_ids, list) and len(task.message_ids) > 0:
+                    message_content_id = random.choice(task.message_ids)
+
+                target_identifier = task.target_identifier
+                if task.scope_mode == "specific" and task.conversation_ids and isinstance(task.conversation_ids, list):
+                    target_identifier = str(random.choice(task.conversation_ids))
+
+                execution_log = await self._create_task_execution_log(
+                    task_execution_log_repository=task_execution_log_repository,
+                    task_type="scheduled",
+                    task_id=int(task.id),
+                    account_id=int(task.account_id),
+                    message_content_id=message_content_id,
+                    target_identifier=target_identifier,
+                )
+                await session.commit()
+
+                send_result = await telegram_service.SendMessage(
+                    account_id=int(task.account_id),
+                    target_identifier=target_identifier,
+                    content=task.message_template or "",
+                    content_type=(task.message_content_id and MessageContentType.TEXT) or MessageContentType.TEXT,
+                    message_content_id=message_content_id,
+                    media_items=None,
+                    source_type=MessageSourceType.SCHEDULED,
+                    task_execution_log_id=int(execution_log.id),
+                )
+                execution_log.send_log_id = send_result.get("send_log_id")
+                execution_log.status = TaskExecutionStatus.SUCCESS if send_result.get("status") == "sent" else TaskExecutionStatus.FAILED
+                execution_log.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                finished = execution_log.finished_at
+                started = execution_log.started_at or finished
+                if finished and started:
+                    execution_log.duration_ms = int((finished - started).total_seconds() * 1000)
+                execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
+                await session.commit()
+
+                error_class = classify_error_message(execution_log.error_message)
                 self._log_task_event(
-                    "task_skip_shard",
+                    "task_executed",
+                    level="INFO" if execution_log.status == TaskExecutionStatus.SUCCESS else "WARNING",
+                    task_type="scheduled",
+                    task_id=int(task.id),
+                    status=str(execution_log.status),
+                    send_log_id=execution_log.send_log_id,
+                    duration_ms=execution_log.duration_ms,
+                    error_class=str(error_class),
+                )
+            except Exception as e:
+                await session.rollback()
+                self._log_task_event(
+                    "task_execution_error",
+                    level="ERROR",
                     task_type="scheduled",
                     task_id=task_id,
+                    error=str(e),
                 )
-                return
-
-            message_content_id = task.message_content_id
-            if task.message_ids and isinstance(task.message_ids, list) and len(task.message_ids) > 0:
-                message_content_id = random.choice(task.message_ids)
-
-            target_identifier = task.target_identifier
-            if task.scope_mode == "specific" and task.conversation_ids and isinstance(task.conversation_ids, list):
-                target_identifier = str(random.choice(task.conversation_ids))
-
-            execution_log = await self._create_task_execution_log(
-                task_execution_log_repository=task_execution_log_repository,
-                task_type="scheduled",
-                task_id=int(task.id),
-                account_id=int(task.account_id),
-                message_content_id=message_content_id,
-                target_identifier=target_identifier,
-            )
-            await session.commit()
-
-            send_result = await telegram_service.SendMessage(
-                account_id=int(task.account_id),
-                target_identifier=target_identifier,
-                content=task.message_template or "",
-                content_type=(task.message_content_id and MessageContentType.TEXT) or MessageContentType.TEXT,
-                message_content_id=message_content_id,
-                media_items=None,
-                source_type=MessageSourceType.SCHEDULED,
-                task_execution_log_id=int(execution_log.id),
-            )
-            execution_log.send_log_id = send_result.get("send_log_id")
-            execution_log.status = TaskExecutionStatus.SUCCESS if send_result.get("status") == "sent" else TaskExecutionStatus.FAILED
-            execution_log.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            finished = execution_log.finished_at
-            started = execution_log.started_at or finished
-            if finished and started:
-                execution_log.duration_ms = int((finished - started).total_seconds() * 1000)
-            execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
-            await session.commit()
-
-            error_class = classify_error_message(execution_log.error_message)
-            self._log_task_event(
-                "task_executed",
-                level="INFO" if execution_log.status == TaskExecutionStatus.SUCCESS else "WARNING",
-                task_type="scheduled",
-                task_id=int(task.id),
-                status=str(execution_log.status),
-                send_log_id=execution_log.send_log_id,
-                duration_ms=execution_log.duration_ms,
-                error_class=str(error_class),
-            )
+                raise
 
     async def ExecuteRuleTaskById(self, task_id: int) -> None:
         """执行单个规则任务。
@@ -628,86 +642,97 @@ class TaskService:
         约定：action_json 至少包含 target_identifier 与 content 字段。
         """
         async with self._session_factory() as session:
-            rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
-            account_repository = SqlAlchemyTelegramAccountRepository(session)
-            message_content_repository = SqlAlchemyMessageContentRepository(session)
-            message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
-            message_repository = SqlAlchemyTelegramMessageRepository(session)
-            message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
-            message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
-            task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(session)
-            telegram_service = TelegramService(
-                settings=self._settings,
-                session=session,
-                account_repository=account_repository,
-                message_content_repository=message_content_repository,
-                message_content_media_repository=message_content_media_repository,
-                message_repository=message_repository,
-                message_media_repository=message_media_repository,
-                message_send_attempt_repository=message_send_attempt_repository,
-                telegram_adapter=self._telegram_adapter,
-            )
+            try:
+                rule_task_repository = SqlAlchemyRuleMessageTaskRepository(session)
+                account_repository = SqlAlchemyTelegramAccountRepository(session)
+                message_content_repository = SqlAlchemyMessageContentRepository(session)
+                message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
+                message_repository = SqlAlchemyTelegramMessageRepository(session)
+                message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
+                message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
+                task_execution_log_repository = SqlAlchemyTaskExecutionLogRepository(session)
+                telegram_service = TelegramService(
+                    settings=self._settings,
+                    session=session,
+                    account_repository=account_repository,
+                    message_content_repository=message_content_repository,
+                    message_content_media_repository=message_content_media_repository,
+                    message_repository=message_repository,
+                    message_media_repository=message_media_repository,
+                    message_send_attempt_repository=message_send_attempt_repository,
+                    telegram_adapter=self._telegram_adapter,
+                )
 
-            task = await rule_task_repository.FindById(task_id)
-            if task is None or not task.is_active:
-                return
+                task = await rule_task_repository.FindById(task_id)
+                if task is None or not task.is_active:
+                    return
 
-            if not self._belongs_to_current_shard(int(task.account_id)):
+                if not self._belongs_to_current_shard(int(task.account_id)):
+                    self._log_task_event(
+                        "task_skip_shard",
+                        task_type="rule",
+                        task_id=task_id,
+                    )
+                    return
+
+                try:
+                    action_data = json.loads(task.action_json)
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    return
+
+                target_identifier = str(action_data.get("target_identifier", "")).strip()
+                content = str(action_data.get("content", "")).strip()
+                if not target_identifier or not content:
+                    return
+
+                execution_log = await self._create_task_execution_log(
+                    task_execution_log_repository=task_execution_log_repository,
+                    task_type="rule",
+                    task_id=int(task.id),
+                    account_id=int(task.account_id),
+                    message_content_id=task.message_content_id,
+                    target_identifier=target_identifier,
+                )
+                await session.commit()
+
+                send_result = await telegram_service.SendMessage(
+                    account_id=int(task.account_id),
+                    target_identifier=target_identifier,
+                    content=content,
+                    content_type=MessageContentType.TEXT,
+                    message_content_id=task.message_content_id,
+                    media_items=None,
+                    source_type=MessageSourceType.RULE,
+                    task_execution_log_id=int(execution_log.id),
+                )
+                execution_log.send_log_id = send_result.get("send_log_id")
+                execution_log.status = TaskExecutionStatus.SUCCESS if send_result.get("status") == "sent" else TaskExecutionStatus.FAILED
+                execution_log.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                finished = execution_log.finished_at
+                started = execution_log.started_at or finished
+                if finished and started:
+                    execution_log.duration_ms = int((finished - started).total_seconds() * 1000)
+                execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
+                await session.commit()
+
+                error_class = classify_error_message(execution_log.error_message)
                 self._log_task_event(
-                    "task_skip_shard",
+                    "task_executed",
+                    level="INFO" if execution_log.status == TaskExecutionStatus.SUCCESS else "WARNING",
+                    task_type="rule",
+                    task_id=int(task.id),
+                    status=str(execution_log.status),
+                    send_log_id=execution_log.send_log_id,
+                    duration_ms=execution_log.duration_ms,
+                    error_class=str(error_class),
+                )
+            except Exception as e:
+                await session.rollback()
+                self._log_task_event(
+                    "task_execution_error",
+                    level="ERROR",
                     task_type="rule",
                     task_id=task_id,
+                    error=str(e),
                 )
-                return
-
-            try:
-                action_data = json.loads(task.action_json)
-            except (ValueError, TypeError, json.JSONDecodeError):
-                return
-
-            target_identifier = str(action_data.get("target_identifier", "")).strip()
-            content = str(action_data.get("content", "")).strip()
-            if not target_identifier or not content:
-                return
-
-            execution_log = await self._create_task_execution_log(
-                task_execution_log_repository=task_execution_log_repository,
-                task_type="rule",
-                task_id=int(task.id),
-                account_id=int(task.account_id),
-                message_content_id=task.message_content_id,
-                target_identifier=target_identifier,
-            )
-            await session.commit()
-
-            send_result = await telegram_service.SendMessage(
-                account_id=int(task.account_id),
-                target_identifier=target_identifier,
-                content=content,
-                content_type=MessageContentType.TEXT,
-                message_content_id=task.message_content_id,
-                media_items=None,
-                source_type=MessageSourceType.RULE,
-                task_execution_log_id=int(execution_log.id),
-            )
-            execution_log.send_log_id = send_result.get("send_log_id")
-            execution_log.status = TaskExecutionStatus.SUCCESS if send_result.get("status") == "sent" else TaskExecutionStatus.FAILED
-            execution_log.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            finished = execution_log.finished_at
-            started = execution_log.started_at or finished
-            if finished and started:
-                execution_log.duration_ms = int((finished - started).total_seconds() * 1000)
-            execution_log.error_message = str(send_result.get("error")) if send_result.get("error") else None
-            await session.commit()
-
-            error_class = classify_error_message(execution_log.error_message)
-            self._log_task_event(
-                "task_executed",
-                level="INFO" if execution_log.status == TaskExecutionStatus.SUCCESS else "WARNING",
-                task_type="rule",
-                task_id=int(task.id),
-                status=str(execution_log.status),
-                send_log_id=execution_log.send_log_id,
-                duration_ms=execution_log.duration_ms,
-                error_class=str(error_class),
-            )
+                raise

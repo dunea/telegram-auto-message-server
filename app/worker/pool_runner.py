@@ -9,6 +9,7 @@ from time import perf_counter
 from app.adapter.mysql_adapter import build_session_factory
 from app.adapter.telegram_adapter import TelegramAdapter
 from app.models.account import InstanceHeartbeat
+from app.models.enums import ErrorClass
 from app.repository.account_repository import SqlAlchemyTelegramAccountRepository
 from app.repository.message_repository import (
     SqlAlchemyMessageContentMediaRepository,
@@ -56,7 +57,12 @@ class PoolRunner:
         self._total_shards = int(settings.pool_total_shards)
         self._shard_index = int(settings.pool_shard_index)
         self._dynamic_shard_signature = (self._total_shards, self._shard_index)
+        self._initial_shard_calculated = False
 
+        self._initial_max_concurrency = max(1, settings.pool_max_concurrent_logins)
+        self._current_max_concurrency = self._initial_max_concurrency
+        self._active_logins_count = 0
+        self._consecutive_normal_rounds = 0
         self._consecutive_degraded_rounds = 0
 
     def _log_event(self, event: str, level: str = "INFO", **fields: object) -> None:
@@ -70,8 +76,17 @@ class PoolRunner:
         level_no = getattr(logging, str(level).upper(), logging.INFO)
         logger.log(level_no, json.dumps(payload, ensure_ascii=False))
 
-    def _assert_shard_guard(self) -> None:
-        pass
+    def _assert_shard_guard(self, old_sig: tuple[int, int], new_sig: tuple[int, int]) -> None:
+        if self._settings.pool_shard_guard_enabled:
+            self._log_event(
+                "shard_drift_detected",
+                level="ERROR",
+                old_signature=old_sig,
+                new_signature=new_sig,
+            )
+            raise RuntimeError(
+                f"分片漂移检测触发：原分片 {old_sig} 漂移为 {new_sig}"
+            )
 
     def _belongs_to_current_shard(self, stable_id: int) -> bool:
         """判断稳定 ID 是否属于当前号池分片。"""
@@ -120,7 +135,16 @@ class PoolRunner:
 
             # 5. 检测到分片分配发生变化，重新载入任务和客户端
             new_signature = (total_shards, shard_index)
-            if new_signature != self._dynamic_shard_signature:
+            if not self._initial_shard_calculated:
+                self._dynamic_shard_signature = new_signature
+                self._total_shards = total_shards
+                self._shard_index = shard_index
+                self._settings.pool_total_shards = total_shards
+                self._settings.pool_shard_index = shard_index
+                self._initial_shard_calculated = True
+            elif new_signature != self._dynamic_shard_signature:
+                self._assert_shard_guard(self._dynamic_shard_signature, new_signature)
+
                 self._log_event(
                     "shard_reallocated",
                     level="WARNING",
@@ -132,7 +156,7 @@ class PoolRunner:
                 self._total_shards = total_shards
                 self._shard_index = shard_index
 
-                # 动态刷新 settings 对象中的取模配置，让下游依赖的 TaskService/TelegramService 能够读取最新配置
+                # 动态刷新 settings 对象中的取模配置，让下游依赖 of TaskService/TelegramService 能够读取最新配置
                 self._settings.pool_total_shards = total_shards
                 self._settings.pool_shard_index = shard_index
 
@@ -143,6 +167,8 @@ class PoolRunner:
                 await self._reload_sharded_tasks()
         except Exception as e:
             self._log_event("shard_recalc_failed", level="ERROR", error=str(e))
+            if isinstance(e, RuntimeError) and "分片漂移检测触发" in str(e):
+                raise
 
     async def _unregister_instance_heartbeat(self) -> None:
         """从数据库中主动删除当前实例的心跳，加快其他实例接管速度。"""
@@ -205,90 +231,110 @@ class PoolRunner:
 
     async def _login_account_with_limit(self, account_id: int) -> dict[str, int | bool]:
         """登录单个账号并刷新在线状态，受并发上限控制。"""
-        async with self._login_semaphore:
-            max_retries = max(1, int(self._settings.pool_login_max_retries))
-            base_backoff = max(1, int(self._settings.pool_login_retry_backoff_seconds))
-            jitter_ms = max(0, int(self._settings.pool_login_retry_jitter_ms))
+        # 并发熔断限流控制
+        while self._active_logins_count >= self._current_max_concurrency:
+            await asyncio.sleep(0.1)
 
-            retry_count = 0
-            timeout_fail_count = 0
-            non_retryable_fail_count = 0
+        self._active_logins_count += 1
+        try:
+            async with self._login_semaphore:
+                max_retries = max(1, int(self._settings.pool_login_max_retries))
+                base_backoff = max(1, int(self._settings.pool_login_retry_backoff_seconds))
+                jitter_ms = max(0, int(self._settings.pool_login_retry_jitter_ms))
 
-            for attempt in range(1, max_retries + 1):
-                async with self._session_factory() as session:
-                    account_repository = SqlAlchemyTelegramAccountRepository(session)
-                    message_content_repository = SqlAlchemyMessageContentRepository(session)
-                    message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
-                    message_repository = SqlAlchemyTelegramMessageRepository(session)
-                    message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
-                    message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
-                    telegram_service = TelegramService(
-                        settings=self._settings,
-                        session=session,
-                        account_repository=account_repository,
-                        message_content_repository=message_content_repository,
-                        message_content_media_repository=message_content_media_repository,
-                        message_repository=message_repository,
-                        message_media_repository=message_media_repository,
-                        message_send_attempt_repository=message_send_attempt_repository,
-                        telegram_adapter=self._telegram_adapter,
-                    )
-                    try:
-                        result = await telegram_service.EnsureAccountOnline(account_id=account_id)
-                        self._log_event(
-                            "account_login_checked",
-                            account_id=account_id,
-                            attempt=attempt,
-                            is_online=bool(result.get("is_online")),
+                retry_count = 0
+                timeout_fail_count = 0
+                non_retryable_fail_count = 0
+
+                for attempt in range(1, max_retries + 1):
+                    async with self._session_factory() as session:
+                        account_repository = SqlAlchemyTelegramAccountRepository(session)
+                        message_content_repository = SqlAlchemyMessageContentRepository(session)
+                        message_content_media_repository = SqlAlchemyMessageContentMediaRepository(session)
+                        message_repository = SqlAlchemyTelegramMessageRepository(session)
+                        message_media_repository = SqlAlchemyTelegramMessageMediaRepository(session)
+                        message_send_attempt_repository = SqlAlchemyTelegramMessageSendAttemptRepository(session)
+                        telegram_service = TelegramService(
+                            settings=self._settings,
+                            session=session,
+                            account_repository=account_repository,
+                            message_content_repository=message_content_repository,
+                            message_content_media_repository=message_content_media_repository,
+                            message_repository=message_repository,
+                            message_media_repository=message_media_repository,
+                            message_send_attempt_repository=message_send_attempt_repository,
+                            telegram_adapter=self._telegram_adapter,
                         )
-                        return {
-                            "ok": True,
-                            "online": bool(result.get("is_online")),
-                            "retry_count": retry_count,
-                            "timeout_fail_count": timeout_fail_count,
-                            "non_retryable_fail_count": non_retryable_fail_count,
-                        }
-                    except Exception as exc:
-                        error_class, retryable, is_timeout = classify_exception(exc)
-                        if is_timeout:
-                            timeout_fail_count += 1
-                        if not retryable:
-                            non_retryable_fail_count += 1
-
-                        will_retry = retryable and attempt < max_retries
-                        self._log_event(
-                            "account_login_failed",
-                            level="WARNING" if will_retry else "ERROR",
-                            account_id=account_id,
-                            attempt=attempt,
-                            max_retries=max_retries,
-                            will_retry=will_retry,
-                            retryable=retryable,
-                            error_class=str(error_class),
-                            error=str(exc),
-                        )
-                        if will_retry:
-                            retry_count += 1
-                            jitter_seconds = random.randint(0, jitter_ms) / 1000 if jitter_ms else 0
-                            next_backoff_seconds = (base_backoff * (2 ** (attempt - 1))) + jitter_seconds
+                        try:
+                            result = await telegram_service.EnsureAccountOnline(account_id=account_id)
                             self._log_event(
-                                "account_login_retry_scheduled",
+                                "account_login_checked",
                                 account_id=account_id,
                                 attempt=attempt,
-                                retry_count=retry_count,
-                                next_backoff_seconds=round(next_backoff_seconds, 3),
+                                is_online=bool(result.get("is_online")),
                             )
-                            await asyncio.sleep(next_backoff_seconds)
-                        else:
-                            break
+                            return {
+                                "ok": True,
+                                "online": bool(result.get("is_online")),
+                                "retry_count": retry_count,
+                                "timeout_fail_count": timeout_fail_count,
+                                "non_retryable_fail_count": non_retryable_fail_count,
+                            }
+                        except Exception as exc:
+                            error_class, retryable, is_timeout = classify_exception(exc)
+                            if is_timeout:
+                                timeout_fail_count += 1
+                            if not retryable:
+                                non_retryable_fail_count += 1
 
-            return {
-                "ok": False,
-                "online": False,
-                "retry_count": retry_count,
-                "timeout_fail_count": timeout_fail_count,
-                "non_retryable_fail_count": non_retryable_fail_count,
-            }
+                            will_retry = retryable and attempt < max_retries
+                            self._log_event(
+                                "account_login_failed",
+                                level="WARNING" if will_retry else "ERROR",
+                                account_id=account_id,
+                                attempt=attempt,
+                                max_retries=max_retries,
+                                will_retry=will_retry,
+                                retryable=retryable,
+                                error_class=str(error_class),
+                                error=str(exc),
+                            )
+                            if will_retry:
+                                retry_count += 1
+                                if error_class == ErrorClass.FLOOD:
+                                    wait_seconds = getattr(exc, "seconds", 10)
+                                    # 加上限 cap 300s，防止无限等待
+                                    wait_seconds = min(300, float(wait_seconds))
+                                    self._log_event(
+                                        "account_login_flood_wait",
+                                        account_id=account_id,
+                                        attempt=attempt,
+                                        wait_seconds=wait_seconds,
+                                    )
+                                    await asyncio.sleep(wait_seconds)
+                                else:
+                                    jitter_seconds = random.randint(0, jitter_ms) / 1000 if jitter_ms else 0
+                                    next_backoff_seconds = (base_backoff * (2 ** (attempt - 1))) + jitter_seconds
+                                    self._log_event(
+                                        "account_login_retry_scheduled",
+                                        account_id=account_id,
+                                        attempt=attempt,
+                                        retry_count=retry_count,
+                                        next_backoff_seconds=round(next_backoff_seconds, 3),
+                                    )
+                                    await asyncio.sleep(next_backoff_seconds)
+                            else:
+                                break
+
+                return {
+                    "ok": False,
+                    "online": False,
+                    "retry_count": retry_count,
+                    "timeout_fail_count": timeout_fail_count,
+                    "non_retryable_fail_count": non_retryable_fail_count,
+                }
+        finally:
+            self._active_logins_count -= 1
 
     async def _scan_and_login_accounts(self) -> None:
         """扫描账号并执行登录状态巡检。
@@ -297,7 +343,6 @@ class PoolRunner:
         1. 仅处理当前实例分片负责的账号，避免多服务器重复登录同一账号。
         2. 账号级并发由 semaphore 控制，防止单实例瞬时登录过多触发风控。
         """
-        self._assert_shard_guard()
         started_at = perf_counter()
         async with self._session_factory() as session:
             account_repository = SqlAlchemyTelegramAccountRepository(session)
@@ -333,9 +378,33 @@ class PoolRunner:
                 success_rate < float(self._settings.pool_round_degraded_success_rate_threshold)
                 or timeout_fail_count >= int(self._settings.pool_round_degraded_timeout_fail_threshold)
             )
-            self._consecutive_degraded_rounds = (
-                self._consecutive_degraded_rounds + 1 if is_degraded else 0
-            )
+
+            # 连续降级与恢复逻辑
+            if is_degraded:
+                self._consecutive_degraded_rounds += 1
+                self._consecutive_normal_rounds = 0
+                if self._consecutive_degraded_rounds >= 3:
+                    old_concurrency = self._current_max_concurrency
+                    self._current_max_concurrency = max(1, self._current_max_concurrency // 2)
+                    if self._current_max_concurrency < old_concurrency:
+                        self._log_event(
+                            "pool_concurrency_degraded",
+                            level="WARNING",
+                            reason=f"连续 {self._consecutive_degraded_rounds} 轮检测到降级，并发上限从 {old_concurrency} 调小至 {self._current_max_concurrency}",
+                        )
+            else:
+                self._consecutive_degraded_rounds = 0
+                self._consecutive_normal_rounds += 1
+                if self._consecutive_normal_rounds >= 2:
+                    if self._current_max_concurrency < self._initial_max_concurrency:
+                        old_concurrency = self._current_max_concurrency
+                        self._current_max_concurrency = min(self._initial_max_concurrency, self._current_max_concurrency * 2)
+                        self._log_event(
+                            "pool_concurrency_recovered",
+                            level="INFO",
+                            reason=f"连续 {self._consecutive_normal_rounds} 轮正常，并发上限从 {old_concurrency} 恢复至 {self._current_max_concurrency}",
+                        )
+                    self._consecutive_normal_rounds = 0
 
             self._log_event(
                 "scan_completed",
@@ -364,14 +433,21 @@ class PoolRunner:
 
     async def _heartbeat_loop(self) -> None:
         """后台心跳循环，确保心跳定时发送不受账号巡检耗时影响。"""
-        try:
-            while True:
+        backoff = 1.0
+        while True:
+            try:
                 await asyncio.sleep(self._settings.pool_heartbeat_interval_seconds)
                 await self._update_instance_heartbeat_and_recalc_shards()
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            self._log_event("heartbeat_loop_failed", level="ERROR", error=str(e))
+                backoff = 1.0  # 成功后重置退避
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                if isinstance(e, RuntimeError) and "分片漂移检测触发" in str(e):
+                    # 分片漂移需要让整个进程退出，所以直接 re-raise 抛给外层
+                    raise
+                self._log_event("heartbeat_loop_failed", level="ERROR", error=str(e))
+                await asyncio.sleep(backoff)
+                backoff = min(60.0, backoff * 2)
 
     async def run_forever(self) -> None:
         # 启动时首先更新一次心跳以初始化动态分片参数
@@ -385,7 +461,6 @@ class PoolRunner:
         
         try:
             while True:
-                self._assert_shard_guard()
                 self._log_event(
                     "scan_started",
                     max_concurrent_logins=self._settings.pool_max_concurrent_logins,

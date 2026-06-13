@@ -67,9 +67,9 @@ def test_classify_exception_blocked_is_non_retryable() -> None:
     assert is_timeout is False
 
 
-def test_classify_exception_flood_is_non_retryable() -> None:
+def test_classify_exception_flood_is_retryable() -> None:
     error_class, retryable, is_timeout = classify_exception(Exception("FloodWaitError: A wait of 300 seconds is required"))
-    assert error_class == ErrorClass.UNKNOWN
-    assert retryable is False
+    assert error_class == ErrorClass.FLOOD
+    assert retryable is True
     assert is_timeout is False
 
