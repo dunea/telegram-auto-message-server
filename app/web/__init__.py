@@ -100,6 +100,7 @@ def register_web_routes(app):
     from app.web.routes.messages import router as messages_router
     from app.web.routes.files import router as files_router
     from app.web.routes.profile import router as profile_router
+    from app.web.routes.repository import router as repository_router
 
     @app.get("/")
     async def root(request: Request):
@@ -117,3 +118,4 @@ def register_web_routes(app):
     app.include_router(messages_router)
     app.include_router(files_router)
     app.include_router(profile_router)
+    app.include_router(repository_router)

@@ -46,8 +46,8 @@
                             {{ site_name }}
                         </a>
                     </div>
-                    {% if user_id or current_user %}
                     <div class="hidden lg:-my-px lg:ml-8 lg:flex lg:space-x-8">
+                        {% if user_id or current_user %}
                         <a href="/web/dashboard" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/dashboard' or request.url.path.startswith('/web/dashboard/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             仪表盘
                         </a>
@@ -66,8 +66,12 @@
                         <a href="/web/files" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/files' or request.url.path.startswith('/web/files/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                             文件管理
                         </a>
+                        {% else %}
+                        <a href="/web/repository" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium {% if request.url.path == '/web/repository' or request.url.path.startswith('/web/repository/') %}border-indigo-500 text-indigo-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+                            项目仓库
+                        </a>
+                        {% endif %}
                     </div>
-                    {% endif %}
                 </div>
                 <div class="hidden lg:flex lg:items-center">
                     {% if user_id or current_user %}
@@ -116,8 +120,8 @@
 
         <!-- Mobile Menu, show/hide based on menu state. -->
         <div class="hidden lg:hidden bg-white border-b border-gray-200" id="mobile-menu">
-            {% if user_id or current_user %}
             <div class="px-2 pt-2 pb-3 space-y-1">
+                {% if user_id or current_user %}
                 <a href="/web/dashboard" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/dashboard' or request.url.path.startswith('/web/dashboard/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     仪表盘
                 </a>
@@ -139,7 +143,13 @@
                 <a href="/web/profile" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/profile' or request.url.path.startswith('/web/profile/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
                     个人资料
                 </a>
+                {% else %}
+                <a href="/web/repository" class="block px-3 py-2 rounded-md text-base font-medium {% if request.url.path == '/web/repository' or request.url.path.startswith('/web/repository/') %}bg-indigo-50 text-indigo-600{% else %}text-gray-500 hover:bg-gray-50 hover:text-gray-755{% endif %}">
+                    项目仓库
+                </a>
+                {% endif %}
             </div>
+            {% if user_id or current_user %}
             <div class="pt-4 pb-3 border-t border-gray-200 px-4 flex items-center justify-between">
                 <a href="/web/profile" class="text-sm font-medium text-gray-500 hover:text-indigo-600 truncate max-w-[180px] inline-block" title="{% if current_user and current_user.email %}{{ current_user.email }}{% else %}已登录{% endif %}">
                     {% if current_user and current_user.email %}
@@ -153,7 +163,7 @@
                 </a>
             </div>
             {% else %}
-            <div class="px-2 pt-2 pb-3 space-y-1">
+            <div class="px-2 pt-2 pb-3 space-y-1 border-t border-gray-100">
                 {% if request.url.path in ['/web/login', '/web/register'] %}
                 <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700">← 返回首页</a>
                 {% else %}
