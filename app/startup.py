@@ -70,9 +70,10 @@ def register_global_exception_handlers(app: FastAPI) -> None:
             
         referer = request.headers.get("referer")
         if referer:
+            from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode, quote
             parsed = urlparse(referer)
             query_params = dict(parse_qsl(parsed.query))
-            query_params["error"] = error_msg
+            query_params.pop("error", None)  # 清理可能残留的 error 参数
             new_query = urlencode(query_params)
             new_url = urlunparse((
                 parsed.scheme,
@@ -82,7 +83,9 @@ def register_global_exception_handlers(app: FastAPI) -> None:
                 new_query,
                 parsed.fragment
             ))
-            return RedirectResponse(url=new_url, status_code=303)
+            response = RedirectResponse(url=new_url, status_code=303)
+            response.set_cookie("flash_error", quote(error_msg), max_age=10)
+            return response
             
         return HTMLResponse(
             content=f"""

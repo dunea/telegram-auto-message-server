@@ -109,7 +109,8 @@ def test_register_post_success() -> None:
         follow_redirects=False
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/web/login?registered=true"
+    assert resp.headers["location"] == "/web/login"
+    assert "flash_success" in resp.cookies
 
 
 def test_register_post_failure() -> None:

@@ -22,7 +22,7 @@
     <div class="mt-4 sm:mx-auto sm:w-full sm:max-w-md">
         <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200">
             
-            {% if registered %}
+            {% if registered or success_msg %}
             <div class="mb-4 bg-green-50 border-l-4 border-green-400 p-4 rounded shadow-sm">
                 <div class="flex">
                     <div class="flex-shrink-0">
@@ -32,7 +32,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm text-green-700 font-medium">
-                            注册成功！请使用邮箱和密码登录。
+                            {{ success_msg or "注册成功！请使用邮箱和密码登录。" }}
                         </p>
                     </div>
                 </div>

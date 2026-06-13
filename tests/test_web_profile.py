@@ -136,7 +136,8 @@ def test_profile_change_email_success() -> None:
         follow_redirects=False
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/web/profile?email_success=true"
+    assert resp.headers["location"] == "/web/profile"
+    assert "flash_success" in resp.cookies
     assert "web_token" in resp.cookies
 
     # Verify token payload
@@ -229,7 +230,8 @@ def test_profile_change_password_success() -> None:
         follow_redirects=False
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/web/profile?password_success=true"
+    assert resp.headers["location"] == "/web/profile"
+    assert "flash_success" in resp.cookies
     assert "web_token" in resp.cookies
 
     # Verify db update

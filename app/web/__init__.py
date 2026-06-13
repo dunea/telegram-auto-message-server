@@ -50,6 +50,15 @@ def custom_template_response(request, name: str, context: dict = None, *args, **
         except Exception:
             pass
 
+    # 检测并读取 flash_success 闪存 Cookie
+    flash_success = request.cookies.get("flash_success")
+    if flash_success:
+        try:
+            import urllib.parse
+            context["success_msg"] = urllib.parse.unquote(flash_success)
+        except Exception:
+            pass
+
     token = request.cookies.get("web_token")
     if token:
         try:
@@ -74,6 +83,8 @@ def custom_template_response(request, name: str, context: dict = None, *args, **
     # 如果读取了闪存消息，则在返回 response 时将其立即销毁
     if flash_error:
         response.delete_cookie("flash_error")
+    if flash_success:
+        response.delete_cookie("flash_success")
         
     return response
 

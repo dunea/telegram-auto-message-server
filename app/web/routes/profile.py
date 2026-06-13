@@ -50,7 +50,9 @@ async def update_email(
 ):
     try:
         result = await auth_service.UpdateUserEmail(user_id=user_id, new_email=new_email)
-        response = RedirectResponse(url="/web/profile?email_success=true", status_code=303)
+        from urllib.parse import quote
+        response = RedirectResponse(url="/web/profile", status_code=303)
+        response.set_cookie("flash_success", quote("邮箱修改成功！"), max_age=10)
         response.set_cookie(
             "web_token",
             result["access_token"],
@@ -84,7 +86,9 @@ async def update_password(
         result = await auth_service.UpdateUserPassword(
             user_id=user_id, old_password=old_password, new_password=new_password
         )
-        response = RedirectResponse(url="/web/profile?password_success=true", status_code=303)
+        from urllib.parse import quote
+        response = RedirectResponse(url="/web/profile", status_code=303)
+        response.set_cookie("flash_success", quote("密码修改成功！"), max_age=10)
         response.set_cookie(
             "web_token",
             result["access_token"],

@@ -78,7 +78,10 @@ async def register(
 ):
     try:
         await auth_service.RegisterUser(email=email, password=password)
-        return RedirectResponse(url="/web/login?registered=true", status_code=303)
+        from urllib.parse import quote
+        response = RedirectResponse(url="/web/login", status_code=303)
+        response.set_cookie("flash_success", quote("注册成功，请使用邮箱和密码登录。"), max_age=10)
+        return response
     except Exception as e:
         return templates.TemplateResponse(
             request,
@@ -131,5 +134,8 @@ async def try_now(
         response.set_cookie("flash_error", urllib.parse.quote(str(e)), max_age=10)
         return response
     except Exception as e:
-        return RedirectResponse(url=f"/web/login?error={str(e)}", status_code=303)
+        from urllib.parse import quote
+        response = RedirectResponse(url="/web/login", status_code=303)
+        response.set_cookie("flash_error", quote(str(e)), max_age=10)
+        return response
 
