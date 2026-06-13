@@ -16,10 +16,11 @@
             <div class="mt-2 max-w-xl text-sm text-gray-500">
                 <p>支持媒体、文档或图片等多种格式，上传后系统将创建生命周期并托管到分布式文件存储中。</p>
             </div>
-            <form action="/web/files/upload" method="post" enctype="multipart/form-data" class="mt-5 sm:flex sm:items-center">
+            <form action="/web/files/upload" method="post" enctype="multipart/form-data" id="upload-form" class="mt-5 sm:flex sm:items-center">
                 <div class="w-full sm:max-w-xs">
                     <label class="sr-only">选择文件</label>
-                    <input type="file" name="file" required
+                    <input type="file" name="file" id="file-input" required
+                           accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mp3,.ogg,.wav,.m4a,.pdf,.txt,.doc,.docx,.xls,.xlsx,.zip,.rar,.7z"
                            class="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-1.5 text-gray-600 bg-white">
                 </div>
                 <button type="submit"
@@ -30,6 +31,35 @@
                     开始上传
                 </button>
             </form>
+            <script>
+            document.getElementById('upload-form').addEventListener('submit', function(e) {
+                const fileInput = document.getElementById('file-input');
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const maxSize = 5 * 1024 * 1024; // 5MB
+                    if (file.size > maxSize) {
+                        alert('文件大小超出限制，最大允许 5MB！');
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    const allowedExtensions = [
+                        'jpg', 'jpeg', 'png', 'gif', 'webp',
+                        'mp4', 'mov', 'avi',
+                        'mp3', 'ogg', 'wav', 'm4a',
+                        'pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx',
+                        'zip', 'rar', '7z'
+                    ];
+                    const filename = file.name;
+                    const ext = filename.split('.').pop().toLowerCase();
+                    if (!allowedExtensions.includes(ext)) {
+                        alert('不支持的文件类型，仅支持图片、视频、音频、文档及压缩包格式！');
+                        e.preventDefault();
+                        return false;
+                    }
+                }
+            });
+            </script>
         </div>
     </div>
 

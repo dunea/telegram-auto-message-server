@@ -42,8 +42,12 @@ async def upload_file(
     file_service: FileService = Depends(get_file_service),
     user_id: int = Depends(get_current_user_from_cookie),
 ):
-    content = await file.read()
-    await file_service.UploadFile(filename=file.filename or "unnamed", content=content)
+    try:
+        content = await file.read()
+        await file_service.UploadFile(filename=file.filename or "unnamed", content=content, owner_user_id=user_id)
+    except ValueError as e:
+        logger.warning(f"上传文件失败: {e}")
+        return RedirectResponse(url=f"/web/files?error={quote(str(e))}", status_code=303)
     return RedirectResponse(url="/web/files", status_code=303)
 
 

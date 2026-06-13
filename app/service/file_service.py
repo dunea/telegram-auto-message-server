@@ -69,8 +69,25 @@ class FileService:
         if not content:
             raise ValueError("文件内容不能为空")
 
-        temp_dir = self.EnsureTempDir(self._settings.local_temp_dir)
+        # 1. 校验文件大小限制 (最大 5MB)
+        max_size_bytes = 5 * 1024 * 1024  # 5MB
+        if len(content) > max_size_bytes:
+            raise ValueError("文件大小超出限制，最大允许 5MB")
+
+        # 2. 校验文件类型 (Telegram 支持的主流媒体和文档后缀)
         safe_name = self._safe_filename(filename)
+        ext = Path(safe_name).suffix.lstrip(".").lower()
+        allowed_extensions = {
+            "jpg", "jpeg", "png", "gif", "webp",
+            "mp4", "mov", "avi",
+            "mp3", "ogg", "wav", "m4a",
+            "pdf", "txt", "doc", "docx", "xls", "xlsx",
+            "zip", "rar", "7z"
+        }
+        if ext not in allowed_extensions:
+            raise ValueError(f"不支持的文件类型 '.{ext}'，仅支持图片、视频、音频、文档及压缩包格式")
+
+        temp_dir = self.EnsureTempDir(self._settings.local_temp_dir)
         file_token = uuid.uuid4().hex
         local_path = temp_dir / f"{file_token}_{safe_name}"
         local_path.write_bytes(content)

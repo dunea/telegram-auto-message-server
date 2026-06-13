@@ -91,3 +91,57 @@ def test_local_storage_fallback_upload_and_delete(tmp_path: Path) -> None:
     assert record.status == "deleted"
     # 验证物理文件被删除
     assert not saved_path.exists()
+
+
+def test_file_upload_size_limit(tmp_path: Path) -> None:
+    """测试上传超过 5MB 的文件时被拦截并抛出 ValueError。"""
+    settings = _build_settings(tmp_path)
+    fake_repository = AsyncMock()
+    fake_s3_adapter = MagicMock()
+    fake_session = AsyncMock()
+    
+    service = FileService(
+        settings=settings,
+        session=fake_session,
+        file_record_repository=fake_repository,
+        s3_adapter=fake_s3_adapter,
+    )
+    
+    # 构造 5MB + 1 字节的数据
+    large_content = b"a" * (5 * 1024 * 1024 + 1)
+    
+    import pytest
+    with pytest.raises(ValueError) as exc_info:
+        asyncio.run(service.UploadFile(
+            filename="large_file.png",
+            content=large_content,
+            owner_user_id=123,
+        ))
+    assert "文件大小超出限制，最大允许 5MB" in str(exc_info.value)
+
+
+def test_file_upload_type_limit(tmp_path: Path) -> None:
+    """测试上传不支持的文件类型后缀时被拦截并抛出 ValueError。"""
+    settings = _build_settings(tmp_path)
+    fake_repository = AsyncMock()
+    fake_s3_adapter = MagicMock()
+    fake_session = AsyncMock()
+    
+    service = FileService(
+        settings=settings,
+        session=fake_session,
+        file_record_repository=fake_repository,
+        s3_adapter=fake_s3_adapter,
+    )
+    
+    # 构造不支持的后缀，如 .exe 和 .msi
+    import pytest
+    for bad_ext in ["exe", "msi", "sh", "bat", "dll"]:
+        with pytest.raises(ValueError) as exc_info:
+            asyncio.run(service.UploadFile(
+                filename=f"malicious.{bad_ext}",
+                content=b"some-content",
+                owner_user_id=123,
+            ))
+        assert "不支持的文件类型" in str(exc_info.value)
+
