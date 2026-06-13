@@ -410,3 +410,66 @@ def test_scheduled_delete() -> None:
     assert deleted_task is not None
     assert deleted_task.is_active is False
     db.close()
+
+
+def test_scheduled_messages_page_load() -> None:
+    """测试获取定时任务随机消息池配置页面。"""
+    db = TestingSessionLocal()
+    acc = TelegramAccount(id=1, phone_number="+8612345678901", display_name="测试账号", is_active=True)
+    task = ScheduledMessageTask(id=20, account_id=1, cron_expr="0 9 * * *", target_identifier="@foo", message_template="template", is_active=True, message_ids=[])
+    db.add_all([acc, task])
+    db.commit()
+    db.close()
+    
+    app = FastAPI()
+    app.include_router(scheduled_router)
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: 1
+    app.dependency_overrides[get_db_session] = get_testing_db
+    app.dependency_overrides[get_task_service] = get_testing_task_service
+    
+    client = TestClient(app)
+    resp = client.get("/web/scheduled/20/messages")
+    assert resp.status_code == 200
+    assert "配置定时随机发送消息池" in resp.text
+    assert "测试账号" in resp.text
+
+
+def test_scheduled_messages_update() -> None:
+    """测试更新定时任务随机消息池。"""
+    db = TestingSessionLocal()
+    acc = TelegramAccount(id=1, phone_number="+8612345678901", display_name="测试账号", is_active=True)
+    task = ScheduledMessageTask(id=21, account_id=1, cron_expr="0 9 * * *", target_identifier="@foo", message_template="template", is_active=True, message_ids=[])
+    db.add_all([acc, task])
+    db.commit()
+    db.close()
+    
+    app = FastAPI()
+    app.include_router(scheduled_router)
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: 1
+    app.dependency_overrides[get_db_session] = get_testing_db
+    app.dependency_overrides[get_task_service] = get_testing_task_service
+    
+    client = TestClient(app)
+    form_data = {
+        "scheduled_messages_text": ["Message A", "Message B"],
+        "scheduled_messages_file_id": ["", ""]
+    }
+    resp = client.post("/web/scheduled/21/messages", data=form_data, follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/web/scheduled"
+    
+    db = TestingSessionLocal()
+    updated_task = db.get(ScheduledMessageTask, 21)
+    assert updated_task is not None
+    assert updated_task.message_ids is not None
+    assert len(updated_task.message_ids) == 2
+    
+    # 验证生成的 MessageContent
+    c1 = db.get(MessageContent, updated_task.message_ids[0])
+    c2 = db.get(MessageContent, updated_task.message_ids[1])
+    assert c1 is not None
+    assert c2 is not None
+    assert c1.text_content == "Message A"
+    assert c2.text_content == "Message B"
+    db.close()
+

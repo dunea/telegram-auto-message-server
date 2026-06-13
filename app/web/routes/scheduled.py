@@ -290,3 +290,91 @@ async def delete_scheduled_task(
     except ValueError:
         raise HTTPException(status_code=404, detail="定时发送任务不存在")
     return RedirectResponse(url="/web/scheduled", status_code=303)
+
+
+@router.get("/scheduled/{task_id}/messages", response_class=HTMLResponse)
+async def scheduled_messages_page(
+    task_id: int,
+    request: Request,
+    user_id: int = Depends(get_current_user_from_cookie),
+    db_session: AsyncSession = Depends(get_db_session),
+    task_service: TaskService = Depends(get_task_service),
+):
+    try:
+        task = await task_service.GetScheduledTaskById(task_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="定时发送任务不存在")
+        
+    from sqlalchemy import select
+    from app.models.message import MessageContent
+    from app.models.file import FileRecord
+    from app.models.account import TelegramAccount
+
+    accounts = (await db_session.scalars(select(TelegramAccount).order_by(TelegramAccount.id))).all()
+    accounts_map = {acc.id: acc for acc in accounts}
+    account = accounts_map.get(task["account_id"])
+    files = (await db_session.scalars(select(FileRecord).where(FileRecord.status == "uploaded"))).all()
+
+    # 查出当前定时任务绑定的多消息池内容
+    task_message_pool = []
+    if task.get("message_ids") and isinstance(task.get("message_ids"), list):
+        for m_id in task["message_ids"]:
+            content_obj = await db_session.get(MessageContent, m_id)
+            if content_obj:
+                selected_file_id = ""
+                if content_obj.media_url:
+                    file_rec = await db_session.scalar(
+                        select(FileRecord).where(
+                            (FileRecord.s3_url == content_obj.media_url) |
+                            (FileRecord.local_path == content_obj.media_url)
+                        )
+                    )
+                    if file_rec:
+                        selected_file_id = str(file_rec.id)
+                task_message_pool.append({
+                    "text": content_obj.text_content or content_obj.caption or "",
+                    "file_record_id": selected_file_id
+                })
+
+    return templates.TemplateResponse(request, "scheduled/messages.html", {
+        "user_id": user_id,
+        "task": task,
+        "account": account,
+        "files": files,
+        "task_message_pool": task_message_pool,
+    })
+
+
+@router.post("/scheduled/{task_id}/messages")
+async def update_scheduled_messages(
+    task_id: int,
+    scheduled_messages_text: list[str] = Form(None),
+    scheduled_messages_file_id: list[str] = Form(None),
+    user_id: int = Depends(get_current_user_from_cookie),
+    task_service: TaskService = Depends(get_task_service),
+):
+    messages_payload = []
+    if scheduled_messages_text:
+        for idx, text in enumerate(scheduled_messages_text):
+            text_str = text.strip()
+            file_id_val = None
+            if scheduled_messages_file_id and idx < len(scheduled_messages_file_id):
+                fid_str = str(scheduled_messages_file_id[idx]).strip()
+                if fid_str and fid_str.isdigit():
+                    file_id_val = int(fid_str)
+            if text_str or file_id_val:
+                messages_payload.append({
+                    "text": text_str,
+                    "file_record_id": file_id_val
+                })
+
+    try:
+        await task_service.UpdateScheduledTaskMessagePool(
+            task_id=task_id,
+            messages_payload=messages_payload,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+        
+    return RedirectResponse(url="/web/scheduled", status_code=303)
+

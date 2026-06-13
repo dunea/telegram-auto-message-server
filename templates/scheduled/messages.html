@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}配置定时发送随机消息池 - {{ site_name }}{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Back Navigation -->
+    <div class="mb-4">
+        <a href="/web/scheduled" class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-4 py-2.5 rounded-lg w-full sm:w-auto sm:bg-transparent sm:p-0">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            返回定时任务列表
+        </a>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-6 py-5 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-lg leading-6 font-semibold text-gray-900">
+                配置定时随机发送消息池
+            </h3>
+            <p class="mt-2 text-sm text-gray-600">
+                当前正在为以下定时任务配置随机发送消息：
+            </p>
+            <div class="mt-2 p-3 bg-white rounded border border-gray-200 text-xs space-y-1 text-gray-700">
+                <p><span class="font-semibold text-gray-500">托管账号:</span> {{ account.display_name or account.phone_number }} (ID: {{ account.id }})</p>
+                <p>
+                    <span class="font-semibold text-gray-500">Cron 表达式:</span> 
+                    <code class="bg-gray-100 text-pink-600 px-2 py-0.5 rounded text-xs font-mono font-bold">{{ task.cron_expr }}</code>
+                </p>
+                <p>
+                    <span class="font-semibold text-gray-500">目标会话:</span> 
+                    <span class="font-mono font-semibold">{{ task.target_identifier }}</span>
+                </p>
+                {% if task.message_template %}
+                <p><span class="font-semibold text-gray-500">默认发送文本:</span> <span class="italic">"{{ task.message_template }}"</span></p>
+                {% endif %}
+            </div>
+        </div>
+
+        <form action="/web/scheduled/{{ task.task_id }}/messages" method="POST" class="p-6 space-y-6">
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-800">随机发送消息选项列表</h4>
+                        <p class="text-xs text-gray-400 mt-0.5">当定时任务触发时，系统会从下方配置的消息池中随机选择一条发送。</p>
+                    </div>
+                    <button type="button" onclick="addMessageItem()" class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition w-full sm:w-auto">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        添加发送消息备选项
+                    </button>
+                </div>
+
+                <div id="message-pool-container" class="space-y-4">
+                    {% if task_message_pool %}
+                        {% for msg in task_message_pool %}
+                            <div class="message-item border p-4 rounded-lg bg-gray-50/80 mb-3 relative flex flex-col gap-3">
+                                <div class="flex justify-between items-center pb-2 border-b border-gray-150">
+                                    <span class="text-xs font-semibold text-indigo-600">选项 #{{ loop.index }}</span>
+                                    <button type="button" onclick="this.closest('.message-item').remove()" class="text-red-600 text-xs hover:underline flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        删除
+                                    </button>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700">消息文本</label>
+                                    <textarea name="scheduled_messages_text" required placeholder="配置随机发送的消息文本..." class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2">{{ msg.text }}</textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700">媒体文件附件 (可选)</label>
+                                     <select name="scheduled_messages_file_id" class="mt-1 block w-full bg-white rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
+                                        <option value="">-- 无附件 --</option>
+                                        {% for file in files %}
+                                        <option value="{{ file.id }}" {% if msg.file_record_id|string == file.id|string %}selected{% endif %}>
+                                            {{ file.local_path | basename }} (ID: {{ file.id }})
+                                        </option>
+                                        {% endfor %}
+                                     </select>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
+                <a href="/web/scheduled" class="inline-flex justify-center items-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition w-full sm:w-auto">
+                    取消
+                </a>
+                <button type="submit" class="inline-flex justify-center items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition w-full sm:w-auto">
+                    保存随机消息池
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// 动态增删消息池 HTML 模板
+function addMessageItem() {
+    const container = document.getElementById('message-pool-container');
+    const html = `
+    <div class="message-item border p-4 rounded-lg bg-gray-50/80 mb-3 relative flex flex-col gap-3">
+        <div class="flex justify-between items-center pb-2 border-b border-gray-150">
+            <span class="text-xs font-semibold text-indigo-600">新选项</span>
+            <button type="button" onclick="this.closest('.message-item').remove()" class="text-red-600 text-xs hover:underline flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                删除
+            </button>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700">消息文本</label>
+            <textarea name="scheduled_messages_text" required placeholder="配置随机发送的消息文本..." class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" rows="2"></textarea>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700">媒体文件附件 (可选)</label>
+             <select name="scheduled_messages_file_id" class="mt-1 block w-full bg-white rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-1.5 border">
+                <option value="">-- 无附件 --</option>
+                {% for file in files %}
+                <option value="{{ file.id }}">${escapeHtml("{{ file.local_path | basename }}")} (ID: {{ file.id }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+}
+
+// 转义特殊 HTML 字符防止安全隐患
+function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+</script>
+{% endblock %}

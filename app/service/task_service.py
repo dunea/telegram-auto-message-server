@@ -428,6 +428,70 @@ class TaskService:
         task_status = await self.SetScheduledTaskActive(task_id=task_id, is_active=False, owner_user_id=owner_user_id)
         return {**task_status, "deleted": True}
 
+    async def UpdateScheduledTaskMessagePool(
+        self,
+        task_id: int,
+        messages_payload: list[dict[str, Any]],
+        owner_user_id: int | None = None,
+    ) -> dict[str, Any]:
+        """更新定时任务的随机消息池（全量覆盖策略）。"""
+        task = await self._get_scheduled_task_or_raise(task_id, owner_user_id)
+
+        # 1. 物理删除旧的 MessageContent 及其对应的 MessageContentMedia
+        if task.message_ids and isinstance(task.message_ids, list) and len(task.message_ids) > 0:
+            from sqlalchemy import delete
+            from app.models.message import MessageContent, MessageContentMedia
+            
+            await self._session.execute(
+                delete(MessageContentMedia).where(MessageContentMedia.message_content_id.in_(task.message_ids))
+            )
+            await self._session.execute(
+                delete(MessageContent).where(MessageContent.id.in_(task.message_ids))
+            )
+            await self._session.flush()
+
+        # 2. 插入新配置的消息内容
+        new_message_ids = []
+        for idx, msg_data in enumerate(messages_payload):
+            text_str = msg_data.get("text", "").strip()
+            file_id_val = msg_data.get("file_record_id")
+
+            if not text_str and not file_id_val:
+                continue
+
+            if file_id_val:
+                from app.models.file import FileRecord
+                file_rec = await self._session.get(FileRecord, file_id_val)
+                if file_rec:
+                    ext = file_rec.local_path.lower().split(".")[-1] if "." in file_rec.local_path else ""
+                    media_type = "image" if ext in ["jpg", "jpeg", "png", "gif", "webp"] else "file"
+                    
+                    content_payload = {
+                        "content_type": "media",
+                        "media_type": media_type,
+                        "media_url": file_rec.s3_url or file_rec.local_path,
+                        "media_key": file_rec.s3_key or "",
+                        "text_content": text_str,
+                    }
+                else:
+                    content_payload = {
+                        "content_type": "text",
+                        "text_content": text_str,
+                    }
+            else:
+                content_payload = {
+                    "content_type": "text",
+                    "text_content": text_str,
+                }
+
+            message_content = await self._build_message_content(int(task.account_id), content_payload)
+            new_message_ids.append(int(message_content.id))
+
+        task.message_ids = new_message_ids
+        await self._session.commit()
+
+        return self._to_scheduled_task_dict(task)
+
     async def ReloadActiveTasksToScheduler(self) -> None:
         """应用启动后重载激活任务。"""
         # 清理已有的定时与规则任务，避免动态调整分片时发生残留冲突

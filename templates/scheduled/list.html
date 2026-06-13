@@ -85,16 +85,22 @@
                         </td>
                         <!-- 消息内容预览 -->
                         <td class="px-6 py-4 text-sm text-gray-900 max-w-sm">
-                            <div class="line-clamp-2 text-gray-700 break-all">
-                                {{ task.message_template or "(无文本内容)" }}
-                            </div>
-                            {% if task.message_content_id %}
-                                <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    包含媒体/内容 ID: {{ task.message_content_id }}
+                            {% if task.message_ids %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 animate-pulse">
+                                    随机消息池 ({{ task.message_ids | length }} 条备选)
                                 </span>
+                            {% else %}
+                                <div class="line-clamp-2 text-gray-700 break-all">
+                                    {{ task.message_template or "(无文本内容)" }}
+                                </div>
+                                {% if task.message_content_id %}
+                                    <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        包含媒体/内容 ID: {{ task.message_content_id }}
+                                    </span>
+                                {% endif %}
                             {% endif %}
                         </td>
                         <!-- 状态 -->
@@ -113,6 +119,7 @@
                         <!-- 操作 -->
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div class="flex items-center justify-end gap-3 whitespace-nowrap">
+                                <a href="/web/scheduled/{{ task.task_id }}/messages" class="text-indigo-600 hover:text-indigo-900 transition whitespace-nowrap">配置消息池</a>
                                 <a href="/web/scheduled/{{ task.task_id }}/edit" class="text-indigo-600 hover:text-indigo-900 transition whitespace-nowrap">编辑</a>
                                 <form action="/web/scheduled/{{ task.task_id }}/delete" method="POST" onsubmit="return confirm('确定要删除此定时发送任务吗？');" class="inline whitespace-nowrap">
                                     <button type="submit" class="text-red-600 hover:text-red-900 transition whitespace-nowrap">删除</button>
@@ -163,14 +170,20 @@
             <!-- Message template preview -->
             <div class="text-xs text-gray-700">
                 <span class="text-gray-500 font-medium block mb-0.5">消息内容:</span>
-                <p class="italic break-all line-clamp-3 bg-gray-50 p-2 rounded border border-gray-100">{{ task.message_template or "(无文本内容)" }}</p>
-                {% if task.message_content_id %}
-                    <span class="inline-flex items-center mt-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        包含内容 ID: {{ task.message_content_id }}
+                {% if task.message_ids %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                        随机消息池 ({{ task.message_ids | length }} 条备选)
                     </span>
+                {% else %}
+                    <p class="italic break-all line-clamp-3 bg-gray-50 p-2 rounded border border-gray-100">{{ task.message_template or "(无文本内容)" }}</p>
+                    {% if task.message_content_id %}
+                        <span class="inline-flex items-center mt-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            包含内容 ID: {{ task.message_content_id }}
+                        </span>
+                    {% endif %}
                 {% endif %}
             </div>
 
@@ -187,6 +200,7 @@
                     {% endif %}
                 </button>
                 <div class="flex gap-3 whitespace-nowrap">
+                    <a href="/web/scheduled/{{ task.task_id }}/messages" class="text-indigo-600 hover:text-indigo-900 transition text-sm font-medium whitespace-nowrap">配置消息池</a>
                     <a href="/web/scheduled/{{ task.task_id }}/edit" class="text-indigo-600 hover:text-indigo-900 transition text-sm font-medium whitespace-nowrap">编辑</a>
                     <form action="/web/scheduled/{{ task.task_id }}/delete" method="POST" onsubmit="return confirm('确定要删除此定时发送任务吗？');" class="inline whitespace-nowrap">
                         <button type="submit" class="text-red-600 hover:text-red-900 transition text-sm font-medium whitespace-nowrap">删除</button>
