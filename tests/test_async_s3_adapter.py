@@ -19,7 +19,15 @@ from app.config import Settings
 
 
 def _build_settings(**overrides) -> Settings:
-    defaults = dict(mode="api", jwt_secret_key="unit-test-secret")
+    defaults = dict(
+        mode="api",
+        jwt_secret_key="unit-test-secret",
+        s3_bucket_name="",
+        s3_access_key_id="",
+        s3_secret_access_key="",
+        s3_endpoint_url="",
+        s3_region_name="",
+    )
     defaults.update(overrides)
     return Settings(**defaults)
 
