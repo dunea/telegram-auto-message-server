@@ -56,7 +56,7 @@ pip install -r requirements.txt
    ```bash
    cp .env.example .env
    ```
-2. 打开新创建的 `.env` 文件，填写您的数据库连接信息（`MYSQL_DSN`）以及 Telegram API 凭证（`TELEGRAM_API_ID` 和 `TELEGRAM_API_HASH`）。
+2. 打开新创建的 `.env` 文件，填写您的数据库连接信息（`MYSQL_DSN`，注：由于 Alembic 迁移工具的同步性质，此处需配置同步格式链接，应用在异步运行时会自动将其转换为异步驱动连接，详情请参见 `.env.example`）以及 Telegram API 凭证（`TELEGRAM_API_ID` 和 `TELEGRAM_API_HASH`）。
 
 ### 第三步：启动系统
 

@@ -48,7 +48,7 @@
 
 - `MODE`、`APP_HOST`、`APP_PORT`、`LOG_LEVEL`
 - `POOL_INSTANCE_ID`、`POOL_MAX_CONCURRENT_LOGINS`、`POOL_TOTAL_SHARDS`、`POOL_SHARD_INDEX`、`POOL_LOGIN_SCAN_INTERVAL_SECONDS`
-- `MYSQL_DSN`（MySQL DSN，无默认值以外的兜底）
+- `MYSQL_DSN`（MySQL DSN，无默认值以外的兜底。注：必须配置同步链接格式如 `mysql+pymysql://`，因为 Alembic 迁移是同步的。应用在异步运行时会自动将其转换为异步驱动连接，如 `aiomysql` 或 `aiosqlite`）
 - `TELEGRAM_API_ID`、`TELEGRAM_API_HASH`（pool 模式必填）
 - `S3_*`（endpoint、ak/sk、bucket、region）
 - `LOCAL_TEMP_DIR`、`LOCAL_TEMP_MAX_BYTES`（默认 5GB）、`LOCAL_TEMP_RETENTION_HOURS`（默认 168h/7d）、`LOCAL_CLEANUP_INTERVAL_MINUTES`（默认 60）
