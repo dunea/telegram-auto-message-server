@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     pool_round_degraded_success_rate_threshold: float = Field(default=0.7, ge=0, le=1)
     pool_round_degraded_timeout_fail_threshold: int = Field(default=3, ge=0)
     pool_shard_guard_enabled: bool = True
+    pool_max_accounts: int = Field(default=100, ge=1, description="单实例节点最多抢占认领的账号上限")
 
     mysql_dsn: str = "sqlite:///storage/data.db"
 

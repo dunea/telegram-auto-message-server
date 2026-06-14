@@ -52,6 +52,7 @@ class PoolRunner:
         self._telegram_adapter = TelegramAdapter(settings=settings)
         self._telegram_adapter.new_message_callback = self._handle_incoming_message
         self._task_scheduler = TaskScheduler()
+        self._claimed_account_ids: set[int] = set()
 
         # 初始化动态分片参数，默认从配置读取，后续由数据库心跳自动调整
         self._total_shards = int(settings.pool_total_shards)
@@ -77,22 +78,12 @@ class PoolRunner:
         logger.log(level_no, json.dumps(payload, ensure_ascii=False))
 
     def _assert_shard_guard(self, old_sig: tuple[int, int], new_sig: tuple[int, int]) -> None:
-        if self._settings.pool_shard_guard_enabled:
-            self._log_event(
-                "shard_drift_detected",
-                level="ERROR",
-                old_signature=old_sig,
-                new_signature=new_sig,
-            )
-            raise RuntimeError(
-                f"分片漂移检测触发：原分片 {old_sig} 漂移为 {new_sig}"
-            )
+        # 分片漂移安全保护，在新方案中已不再强制退出
+        pass
 
     def _belongs_to_current_shard(self, stable_id: int) -> bool:
-        """判断稳定 ID 是否属于当前号池分片。"""
-        total_shards = max(1, int(self._total_shards))
-        shard_index = int(self._shard_index)
-        return stable_id % total_shards == shard_index
+        """判断稳定 ID (账号 ID) 是否已被当前号池实例认领。"""
+        return stable_id in self._claimed_account_ids
 
     async def _update_instance_heartbeat_and_recalc_shards(self) -> None:
         """更新当前实例在数据库的心跳，并动态重新计算分片参数。"""
@@ -133,42 +124,16 @@ class PoolRunner:
                 except ValueError:
                     shard_index = 0
 
-            # 5. 检测到分片分配发生变化，重新载入任务和客户端
+            # 5. 更新兼容签名，不再硬断言漂移
             new_signature = (total_shards, shard_index)
-            if not self._initial_shard_calculated:
-                self._dynamic_shard_signature = new_signature
-                self._total_shards = total_shards
-                self._shard_index = shard_index
-                self._settings.pool_total_shards = total_shards
-                self._settings.pool_shard_index = shard_index
-                self._initial_shard_calculated = True
-            elif new_signature != self._dynamic_shard_signature:
-                self._assert_shard_guard(self._dynamic_shard_signature, new_signature)
-
-                self._log_event(
-                    "shard_reallocated",
-                    level="WARNING",
-                    old_signature=self._dynamic_shard_signature,
-                    new_signature=new_signature,
-                    active_instances=active_ids,
-                )
-                self._dynamic_shard_signature = new_signature
-                self._total_shards = total_shards
-                self._shard_index = shard_index
-
-                # 动态刷新 settings 对象中的取模配置，让下游依赖 of TaskService/TelegramService 能够读取最新配置
-                self._settings.pool_total_shards = total_shards
-                self._settings.pool_shard_index = shard_index
-
-                # 断开已不再归属于自己分片的 Telegram 账号客户端长连接
-                await self._telegram_adapter.RecycleOutofShardClients(self._belongs_to_current_shard)
-
-                # 重新载入属于自己的定时与规则任务到调度器中
-                await self._reload_sharded_tasks()
+            self._dynamic_shard_signature = new_signature
+            self._total_shards = total_shards
+            self._shard_index = shard_index
+            self._settings.pool_total_shards = total_shards
+            self._settings.pool_shard_index = shard_index
+            self._initial_shard_calculated = True
         except Exception as e:
             self._log_event("shard_recalc_failed", level="ERROR", error=str(e))
-            if isinstance(e, RuntimeError) and "分片漂移检测触发" in str(e):
-                raise
 
     async def _unregister_instance_heartbeat(self) -> None:
         """从数据库中主动删除当前实例的心跳，加快其他实例接管速度。"""
@@ -340,23 +305,91 @@ class PoolRunner:
         """扫描账号并执行登录状态巡检。
 
         关键点：
-        1. 仅处理当前实例分片负责的账号，避免多服务器重复登录同一账号。
+        1. 仅处理当前实例抢占认领的账号，避免多服务器重复登录同一账号。
         2. 账号级并发由 semaphore 控制，防止单实例瞬时登录过多触发风控。
         """
         started_at = perf_counter()
+        instance_id = self._settings.pool_instance_id or "pool-1"
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
         async with self._session_factory() as session:
+            # 1. 批量续期自己已认领的账号
+            from sqlalchemy import update
+            stmt_renew = (
+                update(TelegramAccount)
+                .where(TelegramAccount.claimed_by == instance_id)
+                .where(TelegramAccount.is_active == True)
+                .values(claimed_at=now)
+            )
+            await session.execute(stmt_renew)
+
+            # 2. 如果自己认领的账号被禁用了，释放它们的认领权
+            stmt_release_disabled = (
+                update(TelegramAccount)
+                .where(TelegramAccount.claimed_by == instance_id)
+                .where(TelegramAccount.is_active == False)
+                .values(claimed_by=None, claimed_at=None)
+            )
+            await session.execute(stmt_release_disabled)
+            await session.commit()
+
+            # 3. 查出当前自己认领的且活跃的账号列表
             account_repository = SqlAlchemyTelegramAccountRepository(session)
+            my_accounts = await account_repository.FindAllClaimedBy(instance_id)
+            my_account_ids = {a.id for a in my_accounts}
+
+            # 4. 判断是否需要抢占更多账号
+            max_limit = getattr(self._settings, "pool_max_accounts", 100)
+            needed = max_limit - len(my_account_ids)
+            if needed > 0:
+                # 寻找空闲或过期的账号
+                expire_limit = now - timedelta(seconds=90)
+                available = await account_repository.FindAvailableForClaim(expire_limit)
+
+                # 过滤掉自己目前已经持有的
+                to_claim = [a for a in available if a.id not in my_account_ids][:needed]
+                if to_claim:
+                    for acc in to_claim:
+                        try:
+                            # 尝试悲观锁锁定
+                            db_acc = await session.get(TelegramAccount, acc.id, with_for_update=True)
+                        except Exception:
+                            # 降级为常规 get 兼容部分不支持 for update 的方言（如 SQLite）
+                            db_acc = await session.get(TelegramAccount, acc.id)
+
+                        if db_acc and db_acc.is_active and (db_acc.claimed_by is None or db_acc.claimed_at is None or db_acc.claimed_at < expire_limit):
+                            db_acc.claimed_by = instance_id
+                            db_acc.claimed_at = now
+                    await session.commit()
+
+                    # 重新拉取认领结果
+                    my_accounts = await account_repository.FindAllClaimedBy(instance_id)
+                    my_account_ids = {a.id for a in my_accounts}
+
+            # 5. 感知认领关系变化并重载
+            if my_account_ids != self._claimed_account_ids:
+                old_ids = self._claimed_account_ids
+                self._claimed_account_ids = my_account_ids
+
+                # 回收断开不再归属当前实例的账号长连接
+                await self._telegram_adapter.RecycleOutofShardClients(self._belongs_to_current_shard)
+                # 重新载入属于自己的定时与规则任务到调度器中
+                await self._reload_sharded_tasks()
+
+                self._log_event(
+                    "claimed_accounts_changed",
+                    level="INFO",
+                    old_ids=list(old_ids),
+                    new_ids=list(my_account_ids),
+                )
+
+            # 获取所有活跃账号（用于日志打点）
             active_accounts = await account_repository.FindAllByIsActive(True)
 
-            sharded_accounts = [
-                account
-                for account in active_accounts
-                if self._belongs_to_current_shard(int(account.id))
-            ]
-
+            # 6. 对自己认领的账号进行登录巡检
             tasks = [
                 self._login_account_with_limit(account_id=int(account.id))
-                for account in sharded_accounts
+                for account in my_accounts
             ]
 
             if tasks:
@@ -409,7 +442,7 @@ class PoolRunner:
             self._log_event(
                 "scan_completed",
                 active_accounts=len(active_accounts),
-                sharded_accounts=len(sharded_accounts),
+                sharded_accounts=len(my_accounts),
                 processed_accounts=processed_accounts,
                 online_count=online_count,
                 failed_count=failed_count,

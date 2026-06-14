@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,6 +61,18 @@ class TelegramAccountRepository(ABC):
 
     @abstractmethod
     async def ExistsByIdAndOwnerUserId(self, account_id: int, user_id: int) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def FindClaimedAccountIdsByInstance(self, instance_id: str) -> list[int]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def FindAllClaimedBy(self, instance_id: str) -> list[TelegramAccount]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def FindAvailableForClaim(self, expire_time: datetime) -> list[TelegramAccount]:
         raise NotImplementedError
 
 
@@ -140,3 +153,24 @@ class SqlAlchemyTelegramAccountRepository(BaseRepository[TelegramAccount], Teleg
             TelegramAccount.owner_user_id == user_id
         )
         return (await self._session.scalar(stmt)) is not None
+
+    async def FindClaimedAccountIdsByInstance(self, instance_id: str) -> list[int]:
+        stmt = select(TelegramAccount.id).where(
+            TelegramAccount.claimed_by == instance_id,
+            TelegramAccount.is_active == True
+        )
+        return list((await self._session.scalars(stmt)).all())
+
+    async def FindAllClaimedBy(self, instance_id: str) -> list[TelegramAccount]:
+        stmt = select(TelegramAccount).where(
+            TelegramAccount.claimed_by == instance_id,
+            TelegramAccount.is_active == True
+        )
+        return list((await self._session.scalars(stmt)).all())
+
+    async def FindAvailableForClaim(self, expire_time: datetime) -> list[TelegramAccount]:
+        stmt = select(TelegramAccount).where(
+            TelegramAccount.is_active == True,
+            (TelegramAccount.claimed_by == None) | (TelegramAccount.claimed_at < expire_time)
+        )
+        return list((await self._session.scalars(stmt)).all())

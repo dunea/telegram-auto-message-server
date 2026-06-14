@@ -47,6 +47,12 @@ class TelegramAccount(Base, TimestampMixin):
     owner_user_id: Mapped[int | None] = mapped_column(
         BigInteger, index=True, nullable=True, default=None, comment="归属用户 ID"
     )
+    claimed_by: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None, comment="当前认领此账号的号池实例 ID"
+    )
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None, comment="最后一次认领或续租的时间"
+    )
 
 
 
