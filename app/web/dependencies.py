@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 import jwt
 from app.config import get_settings
+from app.common.exceptions import DemoRestrictionError
 
 async def get_current_user_from_cookie(request: Request) -> int:
     token = request.cookies.get("web_token")
@@ -20,7 +21,6 @@ async def get_current_user_from_cookie(request: Request) -> int:
                     "try-now" in path or
                     "logout" in path
                 ):
-                    from app.common.exceptions import DemoRestrictionError
                     raise DemoRestrictionError()
         return int(payload["sub"])
     except DemoRestrictionError:
