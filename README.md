@@ -15,7 +15,7 @@ graph TD
     User([管理员/运营人员]) -->|添加账号/编辑任务| API[1. 控制中心 API 模式]
     API -->|保存配置与任务数据| DB[(MySQL 数据库)]
     
-    subgraph 号池集群 (多机部署)
+    subgraph pool_cluster ["号池集群 (多机部署)"]
         Worker1[2. 号池助手 实例 A]
         Worker2[2. 号池助手 实例 B]
     end
