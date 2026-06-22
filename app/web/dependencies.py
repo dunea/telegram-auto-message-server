@@ -1,6 +1,9 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 import jwt
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.api.deps import get_db_session
+from app.models.user import User
 from app.config import get_settings
 from app.common.exceptions import DemoRestrictionError
 

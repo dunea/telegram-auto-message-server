@@ -2,7 +2,7 @@ import logging
 import uuid
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func, case, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session
@@ -58,8 +58,9 @@ async def admin_dashboard(
     total_tasks = await db_session.scalar(select(func.count(ScheduledMessageTask.id)))
     
     # 统计今日发送的消息总数
-    from datetime import datetime, time
-    today_start = datetime.combine(datetime.now().date(), time.min)
+    from datetime import datetime, time, timezone
+    utc_now = datetime.now(timezone.utc).replace(tzinfo=None)
+    today_start = datetime.combine(utc_now.date(), time.min)
     today_messages = await db_session.scalar(
         select(func.count(TelegramMessage.id)).where(TelegramMessage.created_at >= today_start)
     )
@@ -165,14 +166,22 @@ async def reset_user_api_key(
     user.api_key = uuid.uuid4().hex
     await db_session.commit()
     
+    masked_key = f"{user.api_key[:8]}••••••••••••••••"
     return HTMLResponse(f"""
         <div id="api-key-{user_id}" class="flex items-center gap-1.5 justify-center">
-            <code class="text-xs bg-gray-100 px-1 py-0.5 rounded text-gray-600 font-mono select-all">{user.api_key}</code>
+            <span class="api-key-text font-mono text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded select-all cursor-pointer" 
+                  onclick="var self=this; if(self.dataset.masked==='1'){{ self.textContent=self.dataset.full; self.dataset.masked='0'; }} else {{ self.textContent=self.dataset.masked_val; self.dataset.masked='1'; }}"
+                  data-masked="1"
+                  data-full="{user.api_key}"
+                  data-masked_val="{masked_key}"
+                  title="点击显示/隐藏">
+                {masked_key}
+            </span>
             <button hx-post="/web/admin/users/{user_id}/reset-api-key"
                     hx-target="#api-key-{user_id}"
                     hx-swap="outerHTML"
-                    hx-confirm="确定要重置此用户的 API Key 吗？"
-                    class="text-indigo-600 hover:text-indigo-900 text-xs">
+                    hx-confirm="确定要重置此用户 ({user.email}) 的 API Key 吗？"
+                    class="text-indigo-600 hover:text-indigo-900 text-xs font-semibold">
                 重置
             </button>
         </div>
@@ -272,16 +281,42 @@ def _parse_proxy_line(line: str) -> dict | None:
                     "password": password,
                     "proxy_type": proxy_type
                 }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Failed parsing proxy with schema parser: {exc}", exc_info=True)
             
-    # 尝试按冒号切分 host:port:user:pass 或 host:port
+    # 支持 IPv6: 例如 [2001:db8::1]:1080 或 [2001:db8::1]:1080:user:pass
+    if line.startswith("["):
+        idx_close = line.find("]")
+        if idx_close != -1:
+            host = line[1:idx_close]
+            rest = line[idx_close+1:]
+            if rest.startswith(":"):
+                parts = rest[1:].split(":")
+                if len(parts) >= 1:
+                    try:
+                        port = int(parts[0].strip())
+                        username = parts[1].strip() if len(parts) >= 2 else None
+                        password = parts[2].strip() if len(parts) >= 3 else None
+                        return {
+                            "proxy_host": host,
+                            "proxy_port": port,
+                            "username": username,
+                            "password": password,
+                            "proxy_type": "socks5"
+                        }
+                    except ValueError as exc:
+                        logger.debug(f"Failed parsing IPv6 port: {exc}", exc_info=True)
+                        return None
+        return None
+
+    # 尝试按冒号切分 host:port:user:pass 或 host:port (IPv4 或域名)
     parts = line.split(":")
     if len(parts) >= 2:
         host = parts[0].strip()
         try:
             port = int(parts[1].strip())
-        except ValueError:
+        except ValueError as exc:
+            logger.debug(f"Failed parsing port from non-IPv6 line: {exc}", exc_info=True)
             return None
         
         username = None
@@ -395,11 +430,9 @@ async def batch_delete_proxies(
     proxy_ids = [int(k.split("-")[1]) for k in form_data.keys() if k.startswith("proxy-")]
     
     if proxy_ids:
-        # 执行软删除：将 is_active 设为 False
-        for pid in proxy_ids:
-            proxy = await db_session.get(ProxyInfo, pid)
-            if proxy:
-                proxy.is_active = False
+        # 执行批量软删除：将 is_active 设为 False
+        stmt = update(ProxyInfo).where(ProxyInfo.id.in_(proxy_ids)).values(is_active=False)
+        await db_session.execute(stmt)
         await db_session.commit()
         
     from urllib.parse import quote

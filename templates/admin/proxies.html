@@ -47,7 +47,7 @@
                         </div>
                         <div>
                             <label for="password" class="block text-xs font-bold text-slate-500 uppercase">密码 (可选)</label>
-                            <input type="text" name="password" id="password" placeholder="pass"
+                            <input type="password" name="password" id="password" placeholder="pass"
                                    class="mt-1 block w-full border border-slate-200 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
                         </div>
                     </div>
@@ -129,7 +129,18 @@
                                 <span class="text-sm font-mono text-slate-600">{{ p.proxy_port }}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">{{ p.username or '-' }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">{{ p.password or '-' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
+                                {% if p.password %}
+                                <span class="password-masked border-b border-dashed border-slate-400 cursor-pointer font-sans" 
+                                      onclick="var self=this; if(self.dataset.masked==='1'){ self.textContent=self.dataset.full; self.dataset.masked='0'; } else { self.textContent=self.dataset.masked_val; self.dataset.masked='1'; }"
+                                      data-masked="1"
+                                      data-full="{{ p.password }}"
+                                      data-masked_val="••••••"
+                                      title="点击显示/隐藏">••••••</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="text-sm font-extrabold {% if p.account_count > 0 %}text-indigo-600{% else %}text-slate-400{% endif %}">
                                     {{ p.account_count }}

@@ -59,7 +59,7 @@
                 
                 <!-- Mobile menu button -->
                 <div class="flex items-center lg:hidden">
-                    <button type="button" onclick="toggleAdminMobileMenu()" class="inline-flex items-center justify-center p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none" aria-controls="mobile-menu" aria-expanded="false">
+                    <button type="button" id="admin-mobile-menu-btn" onclick="toggleAdminMobileMenu()" class="inline-flex items-center justify-center p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none" aria-controls="mobile-menu" aria-expanded="false">
                         <span class="sr-only">打开菜单</span>
                         <svg class="h-6 w-6" id="admin-menu-icon-open" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -132,14 +132,17 @@
             var menu = document.getElementById('admin-mobile-menu');
             var iconOpen = document.getElementById('admin-menu-icon-open');
             var iconClose = document.getElementById('admin-menu-icon-close');
+            var btn = document.getElementById('admin-mobile-menu-btn');
             if (menu.classList.contains('hidden')) {
                 menu.classList.remove('hidden');
                 iconOpen.classList.add('hidden');
                 iconClose.classList.remove('hidden');
+                if (btn) btn.setAttribute('aria-expanded', 'true');
             } else {
                 menu.classList.add('hidden');
                 iconOpen.classList.remove('hidden');
                 iconClose.classList.add('hidden');
+                if (btn) btn.setAttribute('aria-expanded', 'false');
             }
         }
     </script>

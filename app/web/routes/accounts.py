@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session, get_telegram_service
@@ -32,18 +32,18 @@ async def list_accounts(
 
 async def _auto_assign_proxy(db_session: AsyncSession) -> int:
     """自动分配一个使用最少的、活跃的代理 IP ID。"""
-    proxies = (await db_session.scalars(select(ProxyInfo).where(ProxyInfo.is_active == True))).all()
-    if not proxies:
+    stmt = (
+        select(ProxyInfo.id)
+        .where(ProxyInfo.is_active == True)
+        .outerjoin(TelegramAccount, (ProxyInfo.id == TelegramAccount.proxy_id) & (TelegramAccount.is_active == True))
+        .group_by(ProxyInfo.id)
+        .order_by(func.count(TelegramAccount.id).asc())
+        .limit(1)
+    )
+    result = await db_session.scalar(stmt)
+    if result is None:
         raise ValueError("系统暂无可用代理 IP，请联系管理员配置。")
-    
-    accounts = (await db_session.scalars(select(TelegramAccount).where(TelegramAccount.is_active == True))).all()
-    proxy_counts = {p.id: 0 for p in proxies}
-    for acc in accounts:
-        if acc.proxy_id in proxy_counts:
-            proxy_counts[acc.proxy_id] += 1
-            
-    sorted_proxies = sorted(proxies, key=lambda p: proxy_counts[p.id])
-    return sorted_proxies[0].id
+    return result
 
 
 @router.get("/accounts/new", response_class=HTMLResponse)
@@ -67,19 +67,17 @@ async def request_phone_code(
     user_id: int = Depends(get_current_user_from_cookie),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    pid = int(proxy_id) if proxy_id and proxy_id.strip() else None
-    if not pid:
-        try:
-            pid = await _auto_assign_proxy(db_session)
-        except ValueError as e:
-            return HTMLResponse(f"""
-                <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                    <p class="text-sm text-red-700">错误: {str(e)}</p>
-                </div>
-                <button onclick="window.location.reload()" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700">
-                    重新开始
-                </button>
-            """)
+    try:
+        pid = await _auto_assign_proxy(db_session)
+    except ValueError as e:
+        return HTMLResponse(f"""
+            <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                <p class="text-sm text-red-700">错误: {str(e)}</p>
+            </div>
+            <button onclick="window.location.reload()" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700">
+                重新开始
+            </button>
+        """)
             
     try:
         res = await telegram_service.RequestPhoneLoginCode(phone_number, proxy_id=pid)
@@ -192,19 +190,17 @@ async def login_with_session(
     user_id: int = Depends(get_current_user_from_cookie),
     db_session: AsyncSession = Depends(get_db_session),
 ):
-    pid = int(proxy_id) if proxy_id and proxy_id.strip() else None
-    if not pid:
-        try:
-            pid = await _auto_assign_proxy(db_session)
-        except ValueError as e:
-            return HTMLResponse(f"""
-                <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                    <p class="text-sm text-red-700">导入失败: {str(e)}</p>
-                </div>
-                <button onclick="window.location.reload()" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700">
-                    重新开始
-                </button>
-            """)
+    try:
+        pid = await _auto_assign_proxy(db_session)
+    except ValueError as e:
+        return HTMLResponse(f"""
+            <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                <p class="text-sm text-red-700">导入失败: {str(e)}</p>
+            </div>
+            <button onclick="window.location.reload()" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700">
+                重新开始
+            </button>
+        """)
             
     try:
         await telegram_service.CreateAccountWithSessionLogin(phone_number, session_string, proxy_id=pid)

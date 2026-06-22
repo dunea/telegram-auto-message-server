@@ -58,6 +58,7 @@ async def login(
             token,
             httponly=True,
             max_age=int(result["expires_in_seconds"]),
+            samesite="lax",
         )
         return response
     except Exception as e:
@@ -132,6 +133,7 @@ async def try_now(
             token,
             httponly=True,
             max_age=int(result["expires_in_seconds"]),
+            samesite="lax",
         )
         return response
     except RateLimitError as e:
