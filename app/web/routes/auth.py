@@ -46,12 +46,19 @@ async def login(
     try:
         result = await auth_service.LoginUser(email=email, password=password)
         token = result["access_token"]
-        response = RedirectResponse(url="/web/dashboard", status_code=303)
+        
+        settings = get_settings()
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        is_admin = payload.get("is_admin", False)
+        
+        redirect_url = "/web/select-role" if is_admin else "/web/dashboard"
+        response = RedirectResponse(url=redirect_url, status_code=303)
         response.set_cookie(
             "web_token",
             token,
             httponly=True,
             max_age=int(result["expires_in_seconds"]),
+            samesite="lax",
         )
         return response
     except Exception as e:
@@ -126,6 +133,7 @@ async def try_now(
             token,
             httponly=True,
             max_age=int(result["expires_in_seconds"]),
+            samesite="lax",
         )
         return response
     except RateLimitError as e:

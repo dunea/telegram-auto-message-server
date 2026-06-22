@@ -1,0 +1,202 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}代理 IP 管理 - {{ site_name }} 管理后台{% endblock %}
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">网络代理 IP 管理</h1>
+        <p class="text-slate-500 mt-1 text-sm">托管 Telegram 账号所需的网络代理池管理。新登录的号将自动优先绑定占用账号最少的代理。</p>
+    </div>
+
+    <!-- Forms Container (Add / Import) -->
+    <div class="grid md:grid-cols-3 gap-6">
+        <!-- Add Single Proxy -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+            <div>
+                <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-1.5">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                    新增单个代理 IP
+                </h3>
+                <form action="/web/admin/proxies/add" method="POST" class="space-y-4">
+                    <div>
+                        <label for="host" class="block text-xs font-bold text-slate-500 uppercase">主机/IP 地址</label>
+                        <input type="text" name="host" id="host" required placeholder="127.0.0.1 或 proxy.com"
+                               class="mt-1 block w-full border border-slate-200 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="port" class="block text-xs font-bold text-slate-500 uppercase">端口</label>
+                            <input type="number" name="port" id="port" required placeholder="1080"
+                                   class="mt-1 block w-full border border-slate-200 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        </div>
+                        <div>
+                            <label for="proxy_type" class="block text-xs font-bold text-slate-500 uppercase">协议协议</label>
+                            <select name="proxy_type" id="proxy_type"
+                                    class="mt-1 block w-full bg-white border border-slate-200 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                                <option value="socks5">SOCKS5</option>
+                                <option value="socks4">SOCKS4</option>
+                                <option value="http">HTTP</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="username" class="block text-xs font-bold text-slate-500 uppercase">用户名 (可选)</label>
+                            <input type="text" name="username" id="username" placeholder="user"
+                                   class="mt-1 block w-full border border-slate-200 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        </div>
+                        <div>
+                            <label for="password" class="block text-xs font-bold text-slate-500 uppercase">密码 (可选)</label>
+                            <input type="password" name="password" id="password" placeholder="pass"
+                                   class="mt-1 block w-full border border-slate-200 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none transition">
+                        保存并启用
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Batch Import Proxies -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm md:col-span-2 flex flex-col justify-between">
+            <div>
+                <h3 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    批量文本解析导入
+                </h3>
+                <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+                    支持按行导入多个代理。支持格式：<br>
+                    1. <code class="bg-slate-100 px-1 rounded text-indigo-600 font-mono">host:port</code> (默认 Socks5)<br>
+                    2. <code class="bg-slate-100 px-1 rounded text-indigo-600 font-mono">host:port:user:pass</code><br>
+                    3. <code class="bg-slate-100 px-1 rounded text-indigo-600 font-mono">protocol://user:pass@host:port</code> (支持 socks5 / socks4 / http)
+                </p>
+                <form action="/web/admin/proxies/import" method="POST" class="space-y-4">
+                    <div>
+                        <textarea name="text_content" rows="5" required placeholder="请输入代理 IP 信息，一行一个代理...&#10;127.0.0.1:1080&#10;192.168.1.100:1080:myuser:mypass&#10;socks5://admin:admin123@10.0.0.5:1088"
+                                  class="block w-full border border-slate-200 rounded-lg shadow-sm py-2.5 px-3.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono"></textarea>
+                    </div>
+                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-950 focus:outline-none transition">
+                        解析并批量导入
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Proxy List -->
+    <div class="bg-white shadow sm:rounded-2xl border border-slate-200/80 overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-4">
+            <h3 class="text-base font-bold text-slate-800">代理 IP 资源列表 ({{ proxies|length }} 个)</h3>
+            <div class="flex gap-2">
+                <button type="button" onclick="confirmBatchDelete()" class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-semibold rounded-lg text-white bg-rose-600 hover:bg-rose-700 transition">
+                    批量软删除选中项
+                </button>
+            </div>
+        </div>
+
+        <form id="batch-form" action="/web/admin/proxies/batch-delete" method="POST">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider w-12">
+                                <input type="checkbox" onclick="toggleSelectAll(this)" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                            </th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">类型</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">主机/IP</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">端口</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">用户名</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">密码</th>
+                            <th scope="col" class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">被占用的活动账号数</th>
+                            <th scope="col" class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">状态</th>
+                            <th scope="col" class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider w-24">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        {% for p in proxies %}
+                        <tr class="hover:bg-slate-50/50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <input type="checkbox" name="proxy-{{ p.id }}" class="proxy-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 uppercase">{{ p.proxy_type }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-sm font-semibold text-slate-800">{{ p.proxy_host }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-sm font-mono text-slate-600">{{ p.proxy_port }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">{{ p.username or '-' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
+                                {% if p.password %}
+                                <span class="password-masked border-b border-dashed border-slate-400 cursor-pointer font-sans" 
+                                      onclick="var self=this; if(self.dataset.masked==='1'){ self.textContent=self.dataset.full; self.dataset.masked='0'; } else { self.textContent=self.dataset.masked_val; self.dataset.masked='1'; }"
+                                      data-masked="1"
+                                      data-full="{{ p.password }}"
+                                      data-masked_val="••••••"
+                                      title="点击显示/隐藏">••••••</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="text-sm font-extrabold {% if p.account_count > 0 %}text-indigo-600{% else %}text-slate-400{% endif %}">
+                                    {{ p.account_count }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                <button type="button"
+                                        hx-post="/web/admin/proxies/{{ p.id }}/toggle-active"
+                                        hx-target="this"
+                                        hx-swap="outerHTML"
+                                        class="inline-flex items-center px-2.5 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
+                                    <span class="{% if p.is_active %}text-green-600 font-bold{% else %}text-red-500 font-bold{% endif %}">
+                                        {{ '● 启用' if p.is_active else '○ 禁用' }}
+                                    </span>
+                                </button>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                <button type="button"
+                                        hx-post="/web/admin/proxies/{{ p.id }}/delete"
+                                        hx-confirm="确定要软删除此代理 IP 吗？该代理将被禁用，但保留审计。"
+                                        class="text-rose-600 hover:text-rose-900 font-semibold">
+                                    删除
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="px-6 py-12 text-center text-sm text-slate-400">
+                                暂无代理 IP，请先在上方进行添加或批量导入。
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleSelectAll(masterCheckbox) {
+        var checkboxes = document.querySelectorAll('.proxy-checkbox');
+        checkboxes.forEach(function(cb) {
+            cb.checked = masterCheckbox.checked;
+        });
+    }
+
+    function confirmBatchDelete() {
+        var selected = document.querySelectorAll('.proxy-checkbox:checked');
+        if (selected.length === 0) {
+            alert('请先勾选需要批量软删除的代理 IP！');
+            return;
+        }
+        if (confirm('确定要批量软删除选中的 ' + selected.length + ' 个代理 IP 吗？被删除的代理将被禁用，保留审计。')) {
+            document.getElementById('batch-form').submit();
+        }
+    }
+</script>
+{% endblock %}

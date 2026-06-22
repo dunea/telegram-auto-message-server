@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>选择工作空间 - {{ site_name }}</title>
+    <!-- Tailwind CSS -->
+    <script src="/static/js/tailwind.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <style>
+        .gradient-bg {
+            background: radial-gradient(circle at 50% 50%, #eef2ff 0%, #f8fafc 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="max-w-3xl w-full">
+        <!-- Site Logo & Header -->
+        <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 text-white mb-4 shadow-lg shadow-indigo-200">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+            </div>
+            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">你好, {{ user.email.split('@')[0] }}</h1>
+            <p class="text-slate-500 mt-2 text-sm sm:text-base">已检测到您的管理员身份，请选择您要进入的工作空间：</p>
+        </div>
+
+        <!-- Cards Container -->
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- Card 1: Front Console -->
+            <a href="/web/dashboard" class="group bg-white rounded-3xl p-8 card-shadow border border-slate-100 flex flex-col justify-between hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-50/50 transition-all duration-300 transform hover:-translate-y-1">
+                <div>
+                    <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">前台控制台</h3>
+                    <p class="text-slate-500 text-sm leading-relaxed mb-6">
+                        配置自动回复规则、创建定时发送任务、查看发送历史和托管的 Telegram 账号。
+                    </p>
+                </div>
+                <div class="flex items-center text-indigo-600 font-semibold group-hover:translate-x-1.5 transition-transform duration-300 text-sm">
+                    进入前台控制台
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </div>
+            </a>
+
+            <!-- Card 2: Admin Panel -->
+            <a href="/web/admin/dashboard" class="group bg-slate-900 rounded-3xl p-8 shadow-xl flex flex-col justify-between hover:bg-slate-950 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
+                <div>
+                    <div class="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-6 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">系统管理后台</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed mb-6">
+                        系统全局运维平台。包含用户状态与权限修改、代理网络 IP 批量增删改查、以及系统状态总览。
+                    </p>
+                </div>
+                <div class="flex items-center text-indigo-400 font-semibold group-hover:translate-x-1.5 transition-transform duration-300 text-sm">
+                    进入系统管理后台
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </div>
+            </a>
+        </div>
+
+        <!-- Footer / Logout Option -->
+        <div class="text-center mt-10">
+            <a href="#" onclick="event.preventDefault(); var f = document.createElement('form'); f.method='POST'; f.action='/web/logout'; document.body.appendChild(f); f.submit();" class="text-slate-400 hover:text-slate-600 text-sm font-medium underline transition duration-150">
+                安全退出登录
+            </a>
+        </div>
+    </div>
+</body>
+</html>
