@@ -68,12 +68,14 @@ def custom_template_response(request, name: str, context: dict = None, *args, **
             payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
             email = payload.get("email")
             user_id = payload.get("sub")
+            is_admin = payload.get("is_admin", False)
             if email and user_id:
                 class SimpleUser:
-                    def __init__(self, uid, email):
+                    def __init__(self, uid, email, is_admin):
                         self.id = uid
                         self.email = email
-                context["current_user"] = SimpleUser(int(user_id), email)
+                        self.is_admin = is_admin
+                context["current_user"] = SimpleUser(int(user_id), email, is_admin)
                 context["user_id"] = int(user_id)
         except Exception:
             pass
@@ -103,6 +105,7 @@ def register_web_routes(app):
     from app.web.routes.repository import router as repository_router
     from app.web.routes.status import router as status_router
     from app.web.routes.features import router as features_router
+    from app.web.routes.admin import router as admin_router
 
     @app.get("/")
     async def root(request: Request):
@@ -123,3 +126,4 @@ def register_web_routes(app):
     app.include_router(repository_router)
     app.include_router(status_router)
     app.include_router(features_router)
+    app.include_router(admin_router)

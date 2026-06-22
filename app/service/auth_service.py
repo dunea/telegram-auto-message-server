@@ -46,6 +46,7 @@ class AuthService:
             "iat": int(now.timestamp()),
             "exp": int(expire_at.timestamp()),
             "type": "access",
+            "is_admin": bool(user.is_admin),
         }
         token = jwt.encode(payload, self._settings.jwt_secret_key, algorithm=self._settings.jwt_algorithm)
         return token, int(expire_delta.total_seconds())
@@ -60,6 +61,7 @@ class AuthService:
             "iat": int(now.timestamp()),
             "exp": int(expire_at.timestamp()),
             "type": "refresh",
+            "is_admin": bool(user.is_admin),
         }
         return jwt.encode(payload, self._settings.jwt_secret_key, algorithm=self._settings.jwt_algorithm)
 

@@ -1,0 +1,88 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}用户管理 - {{ site_name }} 管理后台{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">注册用户管理</h1>
+            <p class="text-slate-500 mt-1 text-sm">全站用户权限设置、账户启用状态与安全凭证管理。</p>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="bg-white shadow sm:rounded-2xl border border-slate-200/80 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">邮箱</th>
+                        <th scope="col" class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">是否为管理员</th>
+                        <th scope="col" class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">状态</th>
+                        <th scope="col" class="px-6 py-4 class-name text-center text-xs font-bold text-slate-500 uppercase tracking-wider">API 鉴权 Key</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">注册时间</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-200">
+                    {% for u in users %}
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">{{ u.id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-sm font-semibold text-slate-800">{{ u.email }}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                            {% if u.id == admin.id %}
+                            <span class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-bold rounded text-indigo-700 bg-indigo-50">
+                                管理员 (当前)
+                            </span>
+                            {% else %}
+                            <button hx-post="/web/admin/users/{{ u.id }}/toggle-admin"
+                                    hx-target="this"
+                                    hx-swap="outerHTML"
+                                    class="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
+                                <span class="{% if u.is_admin %}text-indigo-600 font-bold{% else %}text-gray-500{% endif %}">
+                                    {{ '管理员' if u.is_admin else '普通用户' }}
+                                </span>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                            {% if u.id == admin.id %}
+                            <span class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-bold rounded text-green-700 bg-green-50">
+                                ● 正常
+                            </span>
+                            {% else %}
+                            <button hx-post="/web/admin/users/{{ u.id }}/toggle-active"
+                                    hx-target="this"
+                                    hx-swap="outerHTML"
+                                    class="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
+                                <span class="{% if u.is_active %}text-green-600 font-bold{% else %}text-red-500 font-bold{% endif %}">
+                                    {{ '● 正常' if u.is_active else '○ 已禁用' }}
+                                </span>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <div id="api-key-{{ u.id }}" class="flex items-center gap-1.5 justify-center">
+                                <code class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono select-all">{{ u.api_key }}</code>
+                                <button hx-post="/web/admin/users/{{ u.id }}/reset-api-key"
+                                        hx-target="#api-key-{{ u.id }}"
+                                        hx-swap="outerHTML"
+                                        hx-confirm="确定要重置此用户 ({{ u.email }}) 的 API Key 吗？"
+                                        class="text-indigo-600 hover:text-indigo-900 text-xs font-semibold">
+                                    重置
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
+                            {{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
